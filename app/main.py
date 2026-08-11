@@ -9,6 +9,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import settings as bootstrap_settings
 from app.database import SessionLocal
 from app.routers import auth, board, email_sync, export, invoices, settings, upload
+from app.services.imap_client import sync_new_invoices_standalone
 from app.services.reminders import run_reminder_check_standalone
 from app.services.settings_service import get_settings
 
@@ -25,6 +26,13 @@ async def lifespan(app: FastAPI):
         hour=7,
         minute=0,
         id="due_date_reminder",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        sync_new_invoices_standalone,
+        trigger="cron",
+        minute=0,
+        id="imap_auto_sync",
         replace_existing=True,
     )
     scheduler.start()

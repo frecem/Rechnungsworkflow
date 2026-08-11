@@ -90,6 +90,10 @@
   <button type="submit">Fälligkeits-Erinnerungen jetzt prüfen</button>
 </form>
 
+<h2>Backup</h2>
+<p>Lädt ein ZIP mit einer konsistenten Kopie der Datenbank und allen Belegdateien.</p>
+<a href="/settings/backup"><button type="button">Backup herunterladen</button></a>
+
 <h2>Passwort ändern</h2>
 {% if password_error %}<p class="warning">{{ password_error }}</p>{% endif %}
 {% if password_saved %}<p class="info">Passwort geändert.</p>{% endif %}

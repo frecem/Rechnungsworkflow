@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import FORWARD_TARGETS
 from app.services.auth import hash_password, verify_password
+from app.services.backup import backup_filename, build_backup_zip
 from app.services.reminders import run_reminder_check
 from app.services.settings_service import get_settings
 
@@ -84,6 +85,16 @@ def check_reminders_now(request: Request, db: Session = Depends(get_db)):
         request,
         "settings.html",
         {"settings": settings, "forward_targets": FORWARD_TARGETS, "reminder_check_result": count},
+    )
+
+
+@router.get("/settings/backup")
+def download_backup():
+    content = build_backup_zip()
+    return Response(
+        content=content,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={backup_filename()}"},
     )
 
 

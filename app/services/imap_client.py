@@ -8,14 +8,18 @@ Ingest-Pipeline wie der manuelle Upload ein.
 
 import email
 import imaplib
+import logging
 from email.header import decode_header
 from email.utils import parseaddr
 
 from sqlalchemy.orm import Session
 
+from app.database import SessionLocal
 from app.models import SyncState
 from app.services.ingest import ingest_document
 from app.services.settings_service import get_settings
+
+logger = logging.getLogger(__name__)
 
 ALLOWED_CONTENT_TYPES = {"application/pdf", "image/jpeg", "image/png"}
 
@@ -119,3 +123,21 @@ def sync_new_invoices(db: Session) -> dict:
         db.commit()
 
     return {"new_invoices": new_invoices, "duplicates": duplicates}
+
+
+def sync_new_invoices_standalone() -> dict:
+    """Einstiegspunkt für den stündlichen Scheduler-Job: eigene DB-Session, still
+
+    übersprungen wenn IMAP nicht konfiguriert ist, Verbindungsfehler werden geloggt
+    statt den Scheduler abstürzen zu lassen.
+    """
+    db = SessionLocal()
+    try:
+        return sync_new_invoices(db)
+    except ImapNotConfigured:
+        return {"new_invoices": 0, "duplicates": 0}
+    except (imaplib.IMAP4.error, OSError):
+        logger.warning("Automatischer IMAP-Sync fehlgeschlagen", exc_info=True)
+        return {"new_invoices": 0, "duplicates": 0, "error": "Verbindung fehlgeschlagen"}
+    finally:
+        db.close()

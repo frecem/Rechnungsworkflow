@@ -130,6 +130,8 @@ Fehlers.
   Ergebnis landet im Status `extracted`, alle erkannten Felder sind sofort editierbar.
 - **E-Mails synchronisieren** (Button oben rechts): holt neue Anhänge (PDF/JPG/PNG)
   aus dem konfigurierten IMAP-Postfach ab (read-only, verändert nichts im Postfach).
+  Läuft zusätzlich automatisch stündlich im Hintergrund (kein manueller Klick nötig,
+  sobald IMAP konfiguriert ist).
 - **Übersicht** (`/invoices`): tabellarische Liste, filterbar nach Status, durchsuchbar
   nach Absender/Rechnungsnummer.
 - **Detailansicht**: Dateivorschau links, editierbares Formular rechts. Absender ist
@@ -173,6 +175,23 @@ beenden.
 
 Jede Datei wird beim Speichern per SHA-256 gehasht. Ein erneuter Upload (oder E-Mail-Anhang)
 mit identischem Inhalt wird erkannt und nicht doppelt angelegt.
+
+## Backup
+
+Unter **Einstellungen → Backup** lädt sich ein ZIP mit einer konsistenten Kopie der
+Datenbank (über die SQLite-Backup-API, sicher auch bei laufendem Betrieb) und allen
+Belegdateien herunter. Zum Wiederherstellen: `storage/db.sqlite3` und
+`storage/invoices/` durch den Inhalt des ZIPs ersetzen. Da alles ausschließlich lokal
+liegt, gibt es keine automatische Cloud-Sicherung – regelmäßig manuell exportieren.
+
+## Als App installieren (PWA)
+
+Die App liefert ein Web-App-Manifest samt Icons mit. Auf dem Smartphone/Tablet über
+"Zum Home-Bildschirm hinzufügen" (iOS Safari) bzw. "App installieren" (Android Chrome)
+lässt sie sich wie eine native App vom Homescreen starten (eigenes Icon, ohne
+Browser-Adressleiste). Es gibt bewusst **keinen Offline-Modus** (kein Service Worker) –
+die App braucht für OCR/Versand ohnehin eine Verbindung zum Server, ein Cache wäre hier
+nur zusätzliche Komplexität ohne echten Nutzen.
 
 ## Betrieb hinter einem Reverse Proxy (HTTP + HTTPS)
 
@@ -236,8 +255,9 @@ pytest tests/
 Deckt ab: Extraktions-Heuristiken (inkl. IBAN/BIC-Erkennung), Datei-Speicherlogik, den
 EPC-Girocode-Payload-Aufbau inkl. IBAN-Prüfsummenvalidierung, die
 Fälligkeits-Erinnerungslogik (welche Rechnungen qualifizieren, Digest-Versand,
-Markieren als erinnert) und die Login-Sperre – ohne Abhängigkeit von
-Tesseract/Poppler oder einem echten Postfach, läuft daher überall.
+Markieren als erinnert), die Login-Sperre und den Backup-Export (gültige,
+konsistente SQLite-Kopie inkl. aller Tabellen, Belegdateien im ZIP enthalten) – ohne
+Abhängigkeit von Tesseract/Poppler oder einem echten Postfach, läuft daher überall.
 
 ## Manuelle Verifikation (bereits durchgeführt)
 
@@ -255,9 +275,13 @@ Zusätzlich end-to-end verifiziert: manueller Fälligkeits-Check versendet korre
 formatierten Digest (gemocktes SMTP) und markiert Rechnungen als erinnert; "Als
 bezahlt markieren" stoppt einen erneuten Check zuverlässig; Status-Historie zeigt alle
 Übergänge korrekt; Login sperrt sich nach 5 Fehlversuchen (HTTP 429) und lässt sich
-nach Reset wieder normal nutzen; APScheduler-Job ist korrekt für 07:00 Uhr täglich
-registriert. Mobile-/Tablet-Tauglichkeit wurde per Playwright bei 375×667 und
-768×1024 Viewport-Größen geprüft (Board, Übersicht, Detailansicht): keine
-horizontalen Layout-Überläufe, Topbar bricht korrekt um, und das Verschieben von
-Karten zwischen Spalten funktioniert nachweislich auch ohne Drag&Drop über das
-Dropdown-Menü auf jeder Karte.
+nach Reset wieder normal nutzen; APScheduler-Jobs sind korrekt registriert (Erinnerung
+täglich 07:00 Uhr, IMAP-Sync stündlich). Mobile-/Tablet-Tauglichkeit wurde per
+Playwright bei 375×667 und 768×1024 Viewport-Größen geprüft (Board, Übersicht,
+Detailansicht): keine horizontalen Layout-Überläufe, Topbar bricht korrekt um, und das
+Verschieben von Karten zwischen Spalten funktioniert nachweislich auch ohne Drag&Drop
+über das Dropdown-Menü auf jeder Karte.
+
+Backup-Download live über HTTP getestet: Manifest, alle Icons und Favicon werden mit
+korrekten Content-Types ausgeliefert, `/settings/backup` liefert ein gültiges ZIP mit
+funktionsfähiger SQLite-Kopie.
