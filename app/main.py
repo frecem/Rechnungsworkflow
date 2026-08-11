@@ -53,6 +53,10 @@ async def require_login(request: Request, call_next):
 # middleware added last runs first per request. SessionMiddleware must run before
 # require_login (which reads request.session), so it is added after that middleware
 # is registered.
+#
+# https_only is intentionally left at its default (False): a reverse proxy in front
+# of this app terminates TLS, and the app itself must stay reachable via plain HTTP
+# and HTTPS through that proxy - a secure-only cookie would break the HTTP path.
 app.add_middleware(SessionMiddleware, secret_key=bootstrap_settings.session_secret_key, same_site="lax")
 
 

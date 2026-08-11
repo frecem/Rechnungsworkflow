@@ -80,6 +80,20 @@ uvicorn app.main:app --reload --port 8000
 Öffnen: http://localhost:8000 – beim ersten Start wirst du zur Ersteinrichtung
 (`/setup`) weitergeleitet und legst dort ein Passwort fest.
 
+Für den Betrieb hinter einem Reverse Proxy (HTTP **und** HTTPS erreichbar, siehe
+unten) läuft die App produktiv eher so:
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips="<Proxy-IP>"
+```
+
+- `--host 0.0.0.0`, damit der Proxy die App überhaupt erreicht (statt nur `127.0.0.1`)
+- `--proxy-headers --forwarded-allow-ips=...`: die App vertraut den `X-Forwarded-*`-Headern
+  **nur** von der angegebenen Proxy-IP (z.B. `127.0.0.1` bei gleichem Host, oder die
+  Docker-Netzwerk-IP des Proxy-Containers) – wichtig, damit niemand von außen diese
+  Header fälschen kann. Mehrere IPs kommagetrennt, `"*"` vertraut allen (nur sinnvoll,
+  wenn die App ohnehin nicht direkt von außen erreichbar ist).
+
 ### 6. Einstellungen ausfüllen
 
 Nach dem Login unter **Einstellungen** (`/settings`) hinterlegen:
@@ -141,13 +155,54 @@ IBAN, optional BIC, Betrag und Verwendungszweck – also die Zahlungsdaten des
 Jede Datei wird beim Speichern per SHA-256 gehasht. Ein erneuter Upload (oder E-Mail-Anhang)
 mit identischem Inhalt wird erkannt und nicht doppelt angelegt.
 
+## Betrieb hinter einem Reverse Proxy (HTTP + HTTPS)
+
+Die App selbst spricht nur HTTP (Uvicorn ohne eigenes Zertifikat). Für den Zugriff
+über `http://` **und** `https://` läuft davor ein Reverse Proxy, der die
+TLS-Terminierung übernimmt und intern per HTTP an die App weiterreicht. Die App ist
+darauf ausgelegt: keine erzwungene HTTPS-Weiterleitung, keine "secure-only"-Cookies –
+sie funktioniert unter beiden Schemas identisch, solange der Proxy die Header korrekt
+weiterreicht.
+
+Wichtig auf App-Seite:
+- Mit `--host 0.0.0.0` starten, sonst erreicht der Proxy die App nicht (siehe oben).
+- `--proxy-headers --forwarded-allow-ips="<Proxy-IP>"` setzen, damit `X-Forwarded-Proto`/
+  `X-Forwarded-For` korrekt ausgewertet werden – aber **nur** von der echten Proxy-IP
+  vertraut wird (sonst könnte ein Client diese Header selbst gegenüber der App fälschen,
+  falls sie doch direkt erreichbar wäre).
+
+Beispiel-Konfiguration auf Proxy-Seite (nginx, HTTP + HTTPS parallel, kein Redirect):
+
+```nginx
+server {
+    listen 80;
+    listen 443 ssl;
+    server_name rechnungen.example.local;
+
+    ssl_certificate     /pfad/zum/fullchain.pem;
+    ssl_certificate_key /pfad/zum/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Bei Caddy übernimmt ein einfaches `rechnungen.example.local { reverse_proxy 127.0.0.1:8000 }`
+automatisches HTTPS inkl. Zertifikat; für reines IP:Port ohne Domain (self-signed)
+oder Traefik gilt das gleiche Prinzip – Host/X-Forwarded-*-Header weiterreichen, TLS
+im Proxy terminieren.
+
 ## Sicherheit
 
 Die App ist für den **lokalen** Einsatz durch eine einzelne Person gedacht. Der
-Passwortschutz verhindert beiläufigen Zugriff, ersetzt aber keine Absicherung, wenn du
-den Port ins Netz exponierst (z.B. per Reverse Proxy) – dann zusätzlich HTTPS und
-ggf. eine Firewall-Beschränkung einrichten. Zugangsdaten (IMAP/SMTP) liegen
+Passwortschutz verhindert beiläufigen Zugriff. Zugangsdaten (IMAP/SMTP) liegen
 Klartext-äquivalent in der lokalen SQLite-Datenbank (`storage/db.sqlite3`, gitignored).
+Wird die App über den Reverse Proxy auch von außerhalb des eigenen Netzes erreichbar
+gemacht, zusätzlich eine Firewall-/IP-Beschränkung auf dem Proxy in Betracht ziehen.
 
 ## Tests
 
