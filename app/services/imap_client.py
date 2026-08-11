@@ -32,6 +32,26 @@ class ImapNotConfigured(Exception):
     pass
 
 
+def test_connection(host: str, port: int, user: str, password: str, mailbox: str) -> tuple[bool, str]:
+    """Prüft Login + Postfachzugriff, ohne etwas zu importieren (fürs Setup gedacht)."""
+    try:
+        imap = imaplib.IMAP4_SSL(host, port, timeout=10)
+        try:
+            imap.login(user, password)
+            result, data = imap.select(mailbox, readonly=True)
+            if result != "OK":
+                return False, f"Postfach '{mailbox}' konnte nicht geöffnet werden."
+            count = int(data[0]) if data and data[0] else 0
+            return True, f"Verbindung erfolgreich, {count} Nachricht(en) im Postfach '{mailbox}'."
+        finally:
+            try:
+                imap.logout()
+            except Exception:
+                pass
+    except (imaplib.IMAP4.error, OSError) as exc:
+        return False, f"Verbindung fehlgeschlagen: {exc}"
+
+
 def _decode_maybe(value: str | None) -> str:
     if not value:
         return ""

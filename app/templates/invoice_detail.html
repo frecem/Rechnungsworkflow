@@ -48,6 +48,9 @@
           {% for c in categories %}
             <option value="{{ c }}" {% if c == invoice.category %}selected{% endif %}>{{ c }}</option>
           {% endfor %}
+          {% if invoice.category and invoice.category not in categories %}
+            <option value="{{ invoice.category }}" selected>{{ invoice.category }} (gelöscht)</option>
+          {% endif %}
         </select>
       </label>
       <label>Notizen

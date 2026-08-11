@@ -56,9 +56,12 @@ class Invoice(Base):
     paid_at: Mapped[datetime | None] = mapped_column(DateTime)
     due_reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime)
 
-    # Wiederkehrende Zahlungen (z.B. Miete, Abos) - Gruppierung ueber sender_name
+    # Wiederkehrende Zahlungen (z.B. Miete, Abos) - Gruppierung ueber sender_name.
+    # recurring_ended gilt fuer die gesamte Serie, sobald es auf der jeweils
+    # aktuellsten Rechnung der Gruppe gesetzt ist (siehe app/services/stats.py).
     is_recurring: Mapped[bool] = mapped_column(default=False)
     recurrence_interval_days: Mapped[int | None]
+    recurring_ended: Mapped[bool] = mapped_column(default=False)
 
     # Kanban-Board-Zuordnung
     board_column_id: Mapped[int | None] = mapped_column(ForeignKey("board_columns.id"))

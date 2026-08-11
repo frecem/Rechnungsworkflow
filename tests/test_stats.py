@@ -139,6 +139,29 @@ def test_recurring_overview_marks_overdue_when_expected_date_passed():
     assert overdue[0].expected_next == date(2026, 1, 31)
 
 
+def test_recurring_overview_ended_series_never_overdue():
+    invoices = [
+        _invoice(hash="a", sender_name="Netflix", is_recurring=True, recurrence_interval_days=30,
+                 invoice_date=date(2026, 1, 1), amount_gross=Decimal("15.00"), recurring_ended=True),
+    ]
+    groups = recurring_overview(invoices, today=date(2026, 6, 1))
+    assert groups[0].is_ended is True
+    assert groups[0].is_overdue is False
+    assert groups[0].expected_next is None
+
+
+def test_recurring_overview_latest_invoice_id_used_for_ended_flag():
+    inv1 = _invoice(hash="a", sender_name="Netflix", is_recurring=True, recurrence_interval_days=30,
+                     invoice_date=date(2026, 1, 1), recurring_ended=True)
+    inv2 = _invoice(hash="b", sender_name="Netflix", is_recurring=True, recurrence_interval_days=30,
+                     invoice_date=date(2026, 3, 1), recurring_ended=False)
+    groups = recurring_overview([inv1, inv2], today=date(2026, 6, 1))
+    # Die neuere Rechnung (b) ohne recurring_ended bestimmt die aktuelle Ueberfaelligkeit,
+    # nicht die aeltere, bereits als beendet markierte Rechnung
+    assert groups[0].is_ended is False
+    assert groups[0].is_overdue is True
+
+
 def test_recurring_overview_without_interval_has_no_expected_next():
     invoices = [
         _invoice(hash="a", sender_name="Netflix", is_recurring=True, recurrence_interval_days=None,

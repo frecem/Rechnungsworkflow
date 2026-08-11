@@ -62,6 +62,9 @@ Ein zufälliges Session-Secret erzeugen:
 python3 -c "import secrets; print(secrets.token_hex(32))"
 ```
 
+Bleibt `SESSION_SECRET_KEY` auf dem Platzhalter-Wert aus `.env.example` stehen, warnt
+die App das beim Start deutlich im Log (leicht kompromittierbare Login-Session).
+
 **Alle Benutzerdaten** (IMAP, SMTP, Weiterleitungs-Adressen, Kategorien) werden
 **nicht** in `.env` gepflegt, sondern nach dem Start über die Weboberfläche.
 
@@ -98,8 +101,11 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allo
 
 Nach dem Login unter **Einstellungen** (`/settings`) hinterlegen:
 - IMAP-Zugangsdaten (für automatischen E-Mail-Abruf, z.B. Gmail-App-Passwort, da
-  normale Passwörter oft nicht per IMAP funktionieren)
-- SMTP-Zugangsdaten (für Girocode-Versand und Weiterleitung)
+  normale Passwörter oft nicht per IMAP funktionieren) – Button "IMAP-Verbindung
+  testen" prüft Login und Postfachzugriff sofort, auch mit gerade eingetippten, noch
+  nicht gespeicherten Werten, ohne etwas zu importieren
+- SMTP-Zugangsdaten (für Girocode-Versand und Weiterleitung) – ebenfalls mit
+  "SMTP-Verbindung testen" sofort prüfbar, ohne eine echte Mail zu verschicken
 - **Steuer-App-Adresse**: Scan-E-Mail-Eingang deiner Steuer-Software (z.B. die
   [Buhl Steuer-Scan-App](https://www.buhl.de/steuer/steuer-scan-app/))
 - **Paperless-ngx-Adresse**: [E-Mail-Eingang](https://docs.paperless-ngx.com/usage/#usage-email)
@@ -111,7 +117,10 @@ Nach dem Login unter **Einstellungen** (`/settings`) hinterlegen:
   Fälligkeit) – ohne hinterlegte Adresse ist die Funktion inaktiv. Dieselbe Adresse
   wird auch für den IMAP-Fehler-Alarm und überfällige wiederkehrende Zahlungen genutzt
   (siehe unten)
-- Kategorien-Liste
+- **Kategorien**: eigene Verwaltungstabelle (anlegen/umbenennen/löschen) statt
+  Freitext. Umbenennen aktualisiert automatisch alle Rechnungen, die die Kategorie
+  bereits tragen; Löschen entfernt sie nur aus der Auswahlliste, bestehende
+  Rechnungen behalten ihren Wert (kein stiller Datenverlust)
 
 Die App startet auch ohne vollständig ausgefüllte Einstellungen; die jeweiligen
 Funktionen (Sync-Button, Girocode-Formular) zeigen dann einen Hinweis statt eines
@@ -156,8 +165,10 @@ Fehlers.
   und nach Monat, Jahr per Dropdown wählbar, zusätzlich per Kategorie filterbar
   (Klick auf eine Kategorie in der Tabelle oder über das Dropdown). Zählt alle
   Rechnungen außer abgelehnten mit (gruppiert nach Rechnungsdatum, nicht
-  Fälligkeitsdatum). Darunter eine separate, jahresunabhängige Übersicht aller
-  **wiederkehrenden Zahlungen** (siehe unten).
+  Fälligkeitsdatum). "Drucken / als PDF speichern" blendet Navigation und
+  Formularsteuerung aus für einen sauberen Ausdruck über den Browser-Druckdialog
+  (kein zusätzlicher PDF-Dependency nötig). Darunter eine separate, jahresunabhängige
+  Übersicht aller **wiederkehrenden Zahlungen** (siehe unten).
 - **CSV-Export** (`/export/csv`, optional mit `?status=&category=&date_from=&date_to=`):
   lädt eine `;`-getrennte CSV mit deutschem Dezimalformat (Komma statt Punkt). Netto/USt/Brutto
   sind getrennte Spalten, damit sich später bei Bedarf ein DATEV-Export ergänzen lässt, ohne
@@ -192,8 +203,10 @@ erfolgt über den Absendernamen. Auf `/stats` erscheint eine eigene, jahresunabh
 Übersicht mit Summe, Anzahl, letzter Rechnung und erwartetem nächsten Termin je
 Absender. Bleibt der erwartete nächste Beleg mehr als 7 Tage über das Intervall hinaus
 aus, taucht das in der täglichen Erinnerungs-Mail auf (kein separater Job) – so lange,
-bis entweder eine neue Rechnung dieser Serie eintrifft oder die Markierung entfernt
-wird.
+bis entweder eine neue Rechnung dieser Serie eintrifft oder die Serie über "Als
+beendet markieren" auf der Auswertungsseite abgeschlossen wird (z.B. bei einer
+Kündigung). Eine beendete Serie bleibt in der Übersicht sichtbar, wird aber nie mehr
+als überfällig gemeldet; "Wieder aktivieren" macht das rückgängig.
 
 ## IMAP-Fehler-Alarm
 
@@ -291,10 +304,12 @@ Markieren als erinnert, Verhalten bei SMTP-Verbindungsfehlern), die Login-Sperre
 Backup-Export (gültige, konsistente SQLite-Kopie inkl. aller Tabellen, Belegdateien im
 ZIP enthalten), die Jahres-/Kategorie-Auswertung (Summenbildung, Ausschluss
 abgelehnter Rechnungen, Gruppierung nach Kategorie/Monat, Kategorie-Filter), die
-Gruppierung/Überfälligkeitserkennung wiederkehrender Zahlungen und das
-IMAP-Fehler-Alarm-Tracking (Zähler, einmaliger Alarm ab Schwellwert, Reset bei
-Erfolg) – ohne Abhängigkeit von Tesseract/Poppler oder einem echten Postfach, läuft
-daher überall.
+Gruppierung/Überfälligkeitserkennung wiederkehrender Zahlungen (inkl. "beendet"-Flag),
+das IMAP-Fehler-Alarm-Tracking (Zähler, einmaliger Alarm ab Schwellwert, Reset bei
+Erfolg), die Kategorie-Verwaltung (Anlegen/Umbenennen mit Kaskade auf bestehende
+Rechnungen/Löschen ohne Datenverlust) und die IMAP-/SMTP-Verbindungstests (Erfolg,
+Auth-Fehler, Verbindungsfehler, jeweils gemockt) – ohne Abhängigkeit von
+Tesseract/Poppler oder einem echten Postfach, läuft daher überall.
 
 ## Manuelle Verifikation (bereits durchgeführt)
 
@@ -342,3 +357,15 @@ nicht erreichbar war (`run_reminder_check` fing bislang nur `SmtpNotConfigured` 
 nicht aber `smtplib`-/Verbindungsfehler wie `socket.gaierror`) – jetzt wird das wie an
 allen anderen Versandstellen der App abgefangen und sauber mit Rückgabewert `0`
 behandelt; Regressionstest ergänzt.
+
+"Serie als beendet markieren" live getestet: markierte Serie wird in der Auswertung
+nicht mehr als überfällig angezeigt, "Wieder aktivieren" macht es rückgängig.
+Kategorie-Verwaltung live getestet: Anlegen/Umbenennen/Löschen über die neue
+Tabellen-UI funktioniert, Rechnungen mit gelöschter Kategorie zeigen sie weiterhin
+korrekt in ihrem Formular an (mit Hinweis "gelöscht") statt sie beim nächsten
+Speichern stillschweigend zu verlieren. IMAP-/SMTP-Verbindungstest live gegen einen
+absichtlich nicht auflösbaren Host getestet: klare Fehlermeldung im UI, eingegebene
+Werte bleiben im Formular sichtbar, es wird nichts in die Datenbank geschrieben
+(direkt per SQLite-Abfrage nach dem Test verifiziert). SESSION_SECRET_KEY-Warnung
+live mit Platzhalter-Wert (Warnung im Log) und mit eigenem Wert (keine Warnung)
+gegengetestet.

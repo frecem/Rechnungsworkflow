@@ -157,6 +157,20 @@ def reject_invoice(invoice_id: int, note: str = Form(""), db: Session = Depends(
     return RedirectResponse(f"/invoices/{invoice_id}", status_code=303)
 
 
+@router.post("/invoices/{invoice_id}/recurring-ended")
+def set_recurring_ended(invoice_id: int, ended: str = Form("true"), db: Session = Depends(get_db)):
+    """Markiert eine wiederkehrende Serie als beendet/wieder aktiv.
+
+    Wirkt nur, solange `invoice_id` die aktuellste Rechnung der Gruppe ist (siehe
+    `app.services.stats.recurring_overview`) - trifft immer zu, wenn der Aufruf über
+    den Button in der Auswertung erfolgt, da dieser genau diese ID liefert.
+    """
+    invoice = _get_invoice_or_404(db, invoice_id)
+    invoice.recurring_ended = ended == "true"
+    db.commit()
+    return RedirectResponse("/stats", status_code=303)
+
+
 @router.post("/invoices/{invoice_id}/mark-paid")
 def mark_invoice_paid(invoice_id: int, db: Session = Depends(get_db)):
     invoice = _get_invoice_or_404(db, invoice_id)

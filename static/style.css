@@ -389,3 +389,31 @@ button, input[type="submit"] {
     min-height: 350px;
   }
 }
+
+.print-only {
+  display: none;
+}
+
+@media print {
+  .topbar, .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block;
+  }
+
+  .container {
+    max-width: 100%;
+    padding: 0;
+  }
+
+  body {
+    color: black;
+    background: white;
+  }
+
+  .stats-tile, .invoice-table th, .invoice-table td {
+    border-color: #999;
+  }
+}

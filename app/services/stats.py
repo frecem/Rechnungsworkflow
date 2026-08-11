@@ -98,7 +98,9 @@ class RecurringGroup:
     interval_days: int | None
     last_date: date
     expected_next: date | None
+    latest_invoice_id: int
     is_overdue: bool = False
+    is_ended: bool = False
 
 
 def recurring_overview(invoices: list[Invoice], today: date | None = None) -> list[RecurringGroup]:
@@ -107,6 +109,10 @@ def recurring_overview(invoices: list[Invoice], today: date | None = None) -> li
     `expected_next` wird aus dem Intervall der zuletzt eingegangenen Rechnung der
     Gruppe berechnet; `is_overdue` ist gesetzt, wenn dieser Termin (plus
     Kulanzfrist) bereits verstrichen ist, ohne dass eine neue Rechnung eingetroffen ist.
+    `recurring_ended` auf der jeweils aktuellsten Rechnung der Gruppe markiert die
+    ganze Serie als beendet (z.B. gekündigtes Abo) - dann wird nie mehr "überfällig"
+    gemeldet, bis eine neue Rechnung dieser Serie eintrifft (die dann zur neuen
+    "aktuellsten" Rechnung wird und ihr eigenes recurring_ended zaehlt).
     """
     today = today or date.today()
     recurring = [inv for inv in invoices if inv.is_recurring and inv.invoice_date]
@@ -123,7 +129,7 @@ def recurring_overview(invoices: list[Invoice], today: date | None = None) -> li
 
         expected_next = None
         is_overdue = False
-        if latest.recurrence_interval_days:
+        if latest.recurrence_interval_days and not latest.recurring_ended:
             expected_next = latest.invoice_date + timedelta(days=latest.recurrence_interval_days)
             is_overdue = today > expected_next + timedelta(days=RECURRING_ALERT_GRACE_DAYS)
 
@@ -135,6 +141,8 @@ def recurring_overview(invoices: list[Invoice], today: date | None = None) -> li
                 interval_days=latest.recurrence_interval_days,
                 last_date=latest.invoice_date,
                 expected_next=expected_next,
+                latest_invoice_id=latest.id,
+                is_ended=latest.recurring_ended,
                 is_overdue=is_overdue,
             )
         )

@@ -23,6 +23,10 @@
     <label>Postfach
       <input type="text" name="imap_mailbox" value="{{ settings.imap_mailbox }}">
     </label>
+    <button type="submit" formaction="/settings/test-imap" formnovalidate>IMAP-Verbindung testen</button>
+    {% if imap_test_result %}
+      <p class="{% if imap_test_result[0] %}info{% else %}warning{% endif %}">{{ imap_test_result[1] }}</p>
+    {% endif %}
   </fieldset>
 
   <fieldset>
@@ -39,6 +43,10 @@
     <label>Passwort <span class="hint">(leer lassen, um das bestehende beizubehalten)</span>
       <input type="password" name="smtp_password" placeholder="{% if settings.smtp_password %}•••• hinterlegt{% else %}nicht gesetzt{% endif %}">
     </label>
+    <button type="submit" formaction="/settings/test-smtp" formnovalidate>SMTP-Verbindung testen</button>
+    {% if smtp_test_result %}
+      <p class="{% if smtp_test_result[0] %}info{% else %}warning{% endif %}">{{ smtp_test_result[1] }}</p>
+    {% endif %}
   </fieldset>
 
   <fieldset>
@@ -73,13 +81,6 @@
     </label>
   </fieldset>
 
-  <fieldset>
-    <legend>Kategorien</legend>
-    <label>Komma-getrennte Liste
-      <input type="text" name="categories" value="{{ settings.categories }}">
-    </label>
-  </fieldset>
-
   <button type="submit">Speichern</button>
 </form>
 
@@ -88,6 +89,41 @@
 {% endif %}
 <form method="post" action="/settings/check-reminders" style="display:inline">
   <button type="submit">Fälligkeits-Erinnerungen jetzt prüfen</button>
+</form>
+
+<h2>Kategorien</h2>
+<div class="table-scroll">
+<table class="invoice-table">
+  <thead>
+    <tr><th>Name</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for c in settings.category_list %}
+    <tr>
+      <td>
+        <form method="post" action="/settings/categories/rename" class="inline-form">
+          <input type="hidden" name="old_name" value="{{ c }}">
+          <input type="text" name="new_name" value="{{ c }}">
+          <button type="submit">Umbenennen</button>
+        </form>
+      </td>
+      <td>
+        <form method="post" action="/settings/categories/delete" class="inline-form"
+              onsubmit="return confirm('Kategorie löschen? Bereits zugeordnete Rechnungen behalten sie, sie ist dann nur nicht mehr neu auswählbar.');">
+          <input type="hidden" name="name" value="{{ c }}">
+          <button type="submit" class="btn-reject">Löschen</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<h3>Neue Kategorie</h3>
+<form method="post" action="/settings/categories" class="inline-form">
+  <input type="text" name="name" placeholder="z.B. Versicherung" required>
+  <button type="submit">Anlegen</button>
 </form>
 
 <h2>Backup</h2>

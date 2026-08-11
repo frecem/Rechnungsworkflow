@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -14,12 +15,23 @@ from app.services.reminders import run_reminder_check_standalone
 from app.services.settings_service import get_settings
 
 PUBLIC_PATHS = {"/login", "/setup"}
+DEFAULT_SESSION_SECRET_KEY = "change-me-please-a-long-random-string"
+
+logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if bootstrap_settings.session_secret_key == DEFAULT_SESSION_SECRET_KEY:
+        logger.warning(
+            "SESSION_SECRET_KEY ist noch der Platzhalter-Wert aus .env.example! "
+            "Bitte in .env auf einen zufälligen, geheimen String setzen "
+            "(z.B. python3 -c \"import secrets; print(secrets.token_hex(32))\"), "
+            "sonst ist die Login-Session leicht kompromittierbar."
+        )
+
     scheduler.add_job(
         run_reminder_check_standalone,
         trigger="cron",

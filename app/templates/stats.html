@@ -3,7 +3,9 @@
 {% block content %}
 <h1>Jahres-Auswertung</h1>
 
-<form method="get" action="/stats" class="filter-bar">
+<p class="print-only">Rechnungsworkflow – Jahres-Auswertung {{ selected_year }}{% if selected_category %}, Kategorie: {{ selected_category }}{% endif %} (Stand: {{ today }})</p>
+
+<form method="get" action="/stats" class="filter-bar no-print">
   <select name="year" onchange="this.form.submit()">
     {% for y in years %}
       <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
@@ -20,6 +22,7 @@
     <option value="{{ no_category_label }}" {% if selected_category == no_category_label %}selected{% endif %}>{{ no_category_label }}</option>
   </select>
   <noscript><button type="submit">Anzeigen</button></noscript>
+  <button type="button" onclick="window.print()">Drucken / als PDF speichern</button>
 </form>
 
 {% if stats.invoice_count == 0 %}
@@ -83,7 +86,7 @@
 </table>
 </div>
 
-<p><a href="/export/csv?date_from={{ selected_year }}-01-01&date_to={{ selected_year }}-12-31{% if selected_category and selected_category != no_category_label %}&category={{ selected_category }}{% endif %}">CSV-Export für {{ selected_year }}{% if selected_category %} ({{ selected_category }}){% endif %}</a></p>
+<p class="no-print"><a href="/export/csv?date_from={{ selected_year }}-01-01&date_to={{ selected_year }}-12-31{% if selected_category and selected_category != no_category_label %}&category={{ selected_category }}{% endif %}">CSV-Export für {{ selected_year }}{% if selected_category %} ({{ selected_category }}){% endif %}</a></p>
 {% endif %}
 
 {% if recurring %}
@@ -92,7 +95,7 @@
 <div class="table-scroll">
 <table class="invoice-table">
   <thead>
-    <tr><th>Absender</th><th>Anzahl</th><th>Summe (Brutto)</th><th>Letzte Rechnung</th><th>Nächste erwartet</th></tr>
+    <tr><th>Absender</th><th>Anzahl</th><th>Summe (Brutto)</th><th>Letzte Rechnung</th><th>Nächste erwartet</th><th></th></tr>
   </thead>
   <tbody>
     {% for group in recurring %}
@@ -102,11 +105,26 @@
       <td>{{ "%.2f"|format(group.total) }} €</td>
       <td>{{ group.last_date }}</td>
       <td>
-        {% if group.expected_next %}
+        {% if group.is_ended %}
+          <span class="hint">beendet</span>
+        {% elif group.expected_next %}
           {{ group.expected_next }}
           {% if group.is_overdue %}<span class="warning">(überfällig)</span>{% endif %}
         {% else %}
           – Intervall nicht gesetzt –
+        {% endif %}
+      </td>
+      <td class="recurring-actions no-print">
+        {% if group.is_ended %}
+          <form method="post" action="/invoices/{{ group.latest_invoice_id }}/recurring-ended" class="inline-form">
+            <input type="hidden" name="ended" value="false">
+            <button type="submit">Wieder aktivieren</button>
+          </form>
+        {% else %}
+          <form method="post" action="/invoices/{{ group.latest_invoice_id }}/recurring-ended" class="inline-form">
+            <input type="hidden" name="ended" value="true">
+            <button type="submit">Als beendet markieren</button>
+          </form>
         {% endif %}
       </td>
     </tr>

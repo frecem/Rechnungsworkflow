@@ -39,5 +39,6 @@ def stats_view(
             "no_category_label": NO_CATEGORY_LABEL,
             "selected_category": category,
             "recurring": recurring,
+            "today": date.today(),
         },
     )

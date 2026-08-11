@@ -12,6 +12,17 @@ class SmtpNotConfigured(Exception):
     pass
 
 
+def test_connection(host: str, port: int, user: str, password: str) -> tuple[bool, str]:
+    """Prüft Verbindung + Login, ohne etwas zu versenden (fürs Setup gedacht)."""
+    try:
+        with smtplib.SMTP(host, port, timeout=10) as server:
+            server.starttls()
+            server.login(user, password)
+        return True, "Verbindung und Login erfolgreich."
+    except (smtplib.SMTPException, OSError) as exc:
+        return False, f"Verbindung fehlgeschlagen: {exc}"
+
+
 def send_email(
     db: Session,
     to: str,
