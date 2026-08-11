@@ -2,7 +2,7 @@
 {% block title %}Hochladen – Rechnungsworkflow{% endblock %}
 {% block content %}
 <h1>Beleg hochladen</h1>
-<p>Foto/Scan einer Papierrechnung oder eine PDF-Rechnung hochladen.</p>
+<p>Foto/Scan einer Papierrechnung oder eine PDF-Rechnung hochladen – auch mehrere auf einmal.</p>
 
 {% if duplicate_invoice %}
   <p class="warning">
@@ -11,7 +11,7 @@
 {% endif %}
 
 <form method="post" action="/upload" enctype="multipart/form-data" class="upload-form">
-  <input type="file" name="file" accept="application/pdf,image/*" required>
+  <input type="file" name="files" accept="application/pdf,image/*" multiple required>
   <button type="submit">Hochladen &amp; verarbeiten</button>
 </form>
 {% endblock %}

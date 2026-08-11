@@ -118,16 +118,18 @@ Fehlers.
 ## Bedienung
 
 - **Board** (`/board`, Startseite): Kanban-Ansicht aller Rechnungen. Direkt oben eine
-  Drag&Drop-Upload-Zone (PDF/Foto/Scan per Ziehen oder Klick), ohne extra auf
-  `/upload` navigieren zu müssen. Spalten frei anlegen/umbenennen/löschen/sortieren
-  unter "Spalten verwalten". Karten per Drag&Drop zwischen Spalten verschieben – auf
-  Touchscreens (Handy/Tablet, wo Drag&Drop nicht funktioniert) alternativ per
-  Dropdown-Auswahl auf der Karte. Neue Rechnungen landen automatisch in der ersten
-  Spalte. Voll bedienbar auf Handy/Tablet (responsive Layout, keine horizontalen
-  Überläufe).
-- **Hochladen** (`/upload`): PDF oder Foto/Scan (JPG/PNG) einer Rechnung hochladen.
-  Die App liest zuerst den PDF-Textlayer, falls vorhanden; sonst OCR über Tesseract.
-  Ergebnis landet im Status `extracted`, alle erkannten Felder sind sofort editierbar.
+  Drag&Drop-Upload-Zone (PDF/Foto/Scan, auch mehrere Dateien auf einmal, per Ziehen
+  oder Klick), ohne extra auf `/upload` navigieren zu müssen. Spalten frei
+  anlegen/umbenennen/löschen/sortieren unter "Spalten verwalten". Karten per Drag&Drop
+  zwischen Spalten verschieben – auf Touchscreens (Handy/Tablet, wo Drag&Drop nicht
+  funktioniert) alternativ per Dropdown-Auswahl auf der Karte. Neue Rechnungen landen
+  automatisch in der ersten Spalte. Voll bedienbar auf Handy/Tablet (responsive
+  Layout, keine horizontalen Überläufe).
+- **Hochladen** (`/upload`): PDF oder Foto/Scan (JPG/PNG) einer oder mehrerer
+  Rechnungen gleichzeitig hochladen. Die App liest zuerst den PDF-Textlayer, falls
+  vorhanden; sonst OCR über Tesseract. Bei genau einer Datei geht es direkt zur
+  Detailansicht zur Prüfung; bei mehreren landen alle im Status `extracted` auf dem
+  Board, mit einer Zusammenfassung (neu/bereits bekannt).
 - **E-Mails synchronisieren** (Button oben rechts): holt neue Anhänge (PDF/JPG/PNG)
   aus dem konfigurierten IMAP-Postfach ab (read-only, verändert nichts im Postfach).
   Läuft zusätzlich automatisch stündlich im Hintergrund (kein manueller Klick nötig,
@@ -146,6 +148,10 @@ Fehlers.
   Girocode-Adresse gesendet, danach die Original-Rechnung an das gewählte Ziel
   (Steuer/Paperless/beides) weitergeleitet. Erst wenn beides erfolgreich war, wechselt
   der Status zu `forwarded`.
+- **Auswertung** (`/stats`): Jahres-Übersicht als schneller Überblick vor der
+  Steuererklärung – Gesamtsummen (Brutto/Netto/USt), Aufschlüsselung nach Kategorie
+  und nach Monat, Jahr per Dropdown wählbar. Zählt alle Rechnungen außer abgelehnten
+  mit (gruppiert nach Rechnungsdatum, nicht Fälligkeitsdatum).
 - **CSV-Export** (`/export/csv`, optional mit `?status=&category=&date_from=&date_to=`):
   lädt eine `;`-getrennte CSV mit deutschem Dezimalformat (Komma statt Punkt). Netto/USt/Brutto
   sind getrennte Spalten, damit sich später bei Bedarf ein DATEV-Export ergänzen lässt, ohne
@@ -255,9 +261,11 @@ pytest tests/
 Deckt ab: Extraktions-Heuristiken (inkl. IBAN/BIC-Erkennung), Datei-Speicherlogik, den
 EPC-Girocode-Payload-Aufbau inkl. IBAN-Prüfsummenvalidierung, die
 Fälligkeits-Erinnerungslogik (welche Rechnungen qualifizieren, Digest-Versand,
-Markieren als erinnert), die Login-Sperre und den Backup-Export (gültige,
-konsistente SQLite-Kopie inkl. aller Tabellen, Belegdateien im ZIP enthalten) – ohne
-Abhängigkeit von Tesseract/Poppler oder einem echten Postfach, läuft daher überall.
+Markieren als erinnert), die Login-Sperre, den Backup-Export (gültige, konsistente
+SQLite-Kopie inkl. aller Tabellen, Belegdateien im ZIP enthalten) und die
+Jahres-/Kategorie-Auswertung (Summenbildung, Ausschluss abgelehnter Rechnungen,
+Gruppierung nach Kategorie/Monat) – ohne Abhängigkeit von Tesseract/Poppler oder
+einem echten Postfach, läuft daher überall.
 
 ## Manuelle Verifikation (bereits durchgeführt)
 
@@ -285,3 +293,10 @@ Verschieben von Karten zwischen Spalten funktioniert nachweislich auch ohne Drag
 Backup-Download live über HTTP getestet: Manifest, alle Icons und Favicon werden mit
 korrekten Content-Types ausgeliefert, `/settings/backup` liefert ein gültiges ZIP mit
 funktionsfähiger SQLite-Kopie.
+
+Mehrfach-Upload (3 Dateien gleichzeitig) und Jahres-Auswertung live über HTTP
+getestet: alle drei Rechnungen korrekt angelegt und auf dem Board sichtbar,
+Zusammenfassungs-Banner zeigt korrekte Anzahl; Einzel-Upload (inkl.
+Duplikaterkennung) funktioniert unverändert weiter; Auswertung berechnet Summen nach
+Kategorie und Monat korrekt aus echten, unterschiedlich datierten/kategorisierten
+Testrechnungen.

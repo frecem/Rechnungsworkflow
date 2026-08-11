@@ -6,10 +6,16 @@
   <a href="/board/columns">Spalten verwalten</a>
 </div>
 
+{% if request.query_params.get("upload_new") is not none %}
+  <p class="info">
+    Upload: {{ request.query_params.get("upload_new") }} neue Rechnung(en){% if request.query_params.get("upload_dup") and request.query_params.get("upload_dup") != "0" %}, {{ request.query_params.get("upload_dup") }} bereits bekannt{% endif %}.
+  </p>
+{% endif %}
+
 <form method="post" action="/upload" enctype="multipart/form-data" id="board-upload-form">
   <label for="board-upload-input" class="upload-dropzone" id="board-upload-dropzone">
-    <span class="upload-dropzone-text">Beleg hierher ziehen oder klicken zum Hochladen (PDF, Foto/Scan)</span>
-    <input type="file" name="file" id="board-upload-input" accept="application/pdf,image/*" required>
+    <span class="upload-dropzone-text">Belege hierher ziehen oder klicken zum Hochladen (PDF, Foto/Scan, auch mehrere auf einmal)</span>
+    <input type="file" name="files" id="board-upload-input" accept="application/pdf,image/*" multiple required>
   </label>
 </form>
 

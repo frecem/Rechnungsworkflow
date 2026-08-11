@@ -8,7 +8,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings as bootstrap_settings
 from app.database import SessionLocal
-from app.routers import auth, board, email_sync, export, invoices, settings, upload
+from app.routers import auth, board, email_sync, export, invoices, settings, stats, upload
 from app.services.imap_client import sync_new_invoices_standalone
 from app.services.reminders import run_reminder_check_standalone
 from app.services.settings_service import get_settings
@@ -51,6 +51,7 @@ app.include_router(invoices.router)
 app.include_router(upload.router)
 app.include_router(email_sync.router)
 app.include_router(export.router)
+app.include_router(stats.router)
 
 
 @app.middleware("http")

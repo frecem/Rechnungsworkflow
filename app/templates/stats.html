@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Auswertung – Rechnungsworkflow{% endblock %}
+{% block content %}
+<h1>Jahres-Auswertung</h1>
+
+<form method="get" action="/stats" class="filter-bar">
+  <select name="year" onchange="this.form.submit()">
+    {% for y in years %}
+      <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+    {% endfor %}
+    {% if selected_year not in years %}
+      <option value="{{ selected_year }}" selected>{{ selected_year }}</option>
+    {% endif %}
+  </select>
+  <noscript><button type="submit">Anzeigen</button></noscript>
+</form>
+
+{% if stats.invoice_count == 0 %}
+<p>Keine Rechnungen mit Rechnungsdatum in {{ selected_year }} (abgelehnte ausgenommen).</p>
+{% else %}
+
+<div class="stats-summary">
+  <div class="stats-tile">
+    <div class="stats-tile-label">Rechnungen</div>
+    <div class="stats-tile-value">{{ stats.invoice_count }}</div>
+  </div>
+  <div class="stats-tile">
+    <div class="stats-tile-label">Brutto gesamt</div>
+    <div class="stats-tile-value">{{ "%.2f"|format(stats.total_gross) }} €</div>
+  </div>
+  <div class="stats-tile">
+    <div class="stats-tile-label">Netto gesamt</div>
+    <div class="stats-tile-value">{{ "%.2f"|format(stats.total_net) }} €</div>
+  </div>
+  <div class="stats-tile">
+    <div class="stats-tile-label">USt gesamt</div>
+    <div class="stats-tile-value">{{ "%.2f"|format(stats.total_vat) }} €</div>
+  </div>
+</div>
+
+<h2>Nach Kategorie</h2>
+<div class="table-scroll">
+<table class="invoice-table">
+  <thead>
+    <tr><th>Kategorie</th><th>Anzahl</th><th>Summe (Brutto)</th></tr>
+  </thead>
+  <tbody>
+    {% for row in stats.by_category %}
+    <tr>
+      <td>{{ row.label }}</td>
+      <td>{{ row.count }}</td>
+      <td>{{ "%.2f"|format(row.total) }} €</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<h2>Nach Monat</h2>
+<div class="table-scroll">
+<table class="invoice-table">
+  <thead>
+    <tr><th>Monat</th><th>Anzahl</th><th>Summe (Brutto)</th></tr>
+  </thead>
+  <tbody>
+    {% for row in stats.by_month %}
+    <tr>
+      <td>{{ row.label }}</td>
+      <td>{{ row.count }}</td>
+      <td>{{ "%.2f"|format(row.total) }} €</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<p><a href="/export/csv?date_from={{ selected_year }}-01-01&date_to={{ selected_year }}-12-31">CSV-Export für {{ selected_year }}</a></p>
+{% endif %}
+{% endblock %}

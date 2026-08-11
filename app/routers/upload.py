@@ -17,24 +17,28 @@ def upload_form(request: Request):
 
 
 @router.post("/upload")
-async def upload_file(request: Request, file: UploadFile, db: Session = Depends(get_db)):
-    content = await file.read()
-    mime_type = file.content_type or storage.guess_mime_type(file.filename or "")
+async def upload_files(request: Request, files: list[UploadFile], db: Session = Depends(get_db)):
+    results = []
+    for file in files:
+        content = await file.read()
+        mime_type = file.content_type or storage.guess_mime_type(file.filename or "")
 
-    invoice, is_new = ingest_document(
-        db,
-        content=content,
-        original_filename=file.filename or "beleg",
-        mime_type=mime_type,
-        source_type="upload",
-        source_detail=file.filename,
-    )
-
-    if not is_new:
-        return templates.TemplateResponse(
-            request,
-            "upload.html",
-            {"duplicate_invoice": invoice},
+        invoice, is_new = ingest_document(
+            db,
+            content=content,
+            original_filename=file.filename or "beleg",
+            mime_type=mime_type,
+            source_type="upload",
+            source_detail=file.filename,
         )
+        results.append((invoice, is_new))
 
-    return RedirectResponse(f"/invoices/{invoice.id}", status_code=303)
+    if len(results) == 1:
+        invoice, is_new = results[0]
+        if not is_new:
+            return templates.TemplateResponse(request, "upload.html", {"duplicate_invoice": invoice})
+        return RedirectResponse(f"/invoices/{invoice.id}", status_code=303)
+
+    new_count = sum(1 for _, is_new in results if is_new)
+    duplicate_count = len(results) - new_count
+    return RedirectResponse(f"/board?upload_new={new_count}&upload_dup={duplicate_count}", status_code=303)
