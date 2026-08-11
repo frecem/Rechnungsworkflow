@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
 STATUSES = ("new", "extracted", "reviewed", "approved", "rejected", "forwarded")
+FORWARD_TARGETS = ("steuer", "paperless", "both")
 
 
 class Invoice(Base):
@@ -44,6 +45,17 @@ class Invoice(Base):
     forwarded_to: Mapped[str | None]
     forwarded_at: Mapped[datetime | None] = mapped_column(DateTime)
 
+    # Girocode / SEPA-Zahlungsdaten (aus der Pruefmaske vor der Freigabe)
+    payment_recipient_name: Mapped[str | None]
+    payment_iban: Mapped[str | None]
+    payment_bic: Mapped[str | None]
+    payment_reference: Mapped[str | None]
+    girocode_sent_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    # Kanban-Board-Zuordnung
+    board_column_id: Mapped[int | None] = mapped_column(ForeignKey("board_columns.id"))
+    board_position: Mapped[int] = mapped_column(default=0)
+
     notes: Mapped[str | None]
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
@@ -69,3 +81,57 @@ class SyncState(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     mailbox: Mapped[str] = mapped_column(unique=True)
     last_uid: Mapped[int] = mapped_column(default=0)
+
+
+class BoardColumn(Base):
+    """Frei benennbare Kanban-Spalte, vom Nutzer selbst angelegt/umbenannt/sortiert."""
+
+    __tablename__ = "board_columns"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str]
+    position: Mapped[int] = mapped_column(default=0)
+
+
+class AppSettings(Base):
+    """Singleton-Zeile (id=1) mit allen ueber die Einstellungen-Seite verwalteten Zugangsdaten."""
+
+    __tablename__ = "app_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    admin_password_hash: Mapped[str | None]
+
+    imap_host: Mapped[str | None]
+    imap_port: Mapped[int] = mapped_column(default=993)
+    imap_user: Mapped[str | None]
+    imap_app_password: Mapped[str | None]
+    imap_mailbox: Mapped[str] = mapped_column(default="INBOX")
+
+    smtp_host: Mapped[str | None]
+    smtp_port: Mapped[int] = mapped_column(default=587)
+    smtp_user: Mapped[str | None]
+    smtp_password: Mapped[str | None]
+
+    steuer_email: Mapped[str | None]
+    paperless_email: Mapped[str | None]
+    girocode_email: Mapped[str | None]
+    default_forward_target: Mapped[str] = mapped_column(default="steuer")
+
+    categories: Mapped[str] = mapped_column(default="Büro,Software,Reise,Sonstiges")
+
+    @property
+    def category_list(self) -> list[str]:
+        return [c.strip() for c in self.categories.split(",") if c.strip()]
+
+    @property
+    def imap_configured(self) -> bool:
+        return bool(self.imap_host and self.imap_user and self.imap_app_password)
+
+    @property
+    def smtp_configured(self) -> bool:
+        return bool(self.smtp_host and self.smtp_user and self.smtp_password)
+
+    @property
+    def password_set(self) -> bool:
+        return bool(self.admin_password_hash)

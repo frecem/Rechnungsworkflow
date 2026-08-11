@@ -12,4 +12,7 @@ pdf2image>=1.17
 pytesseract>=0.3.13
 pillow>=11.0
 python-dateutil>=2.9
+bcrypt>=4.2
+itsdangerous>=2.2
+qrcode>=7.4
 pytest>=8.3

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ersteinrichtung – Rechnungsworkflow</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="container auth-container">
+    <h1>Rechnungsworkflow einrichten</h1>
+    <p>Lege ein Passwort fest, um die App zu schützen (deine Rechnungen enthalten private Finanzdaten).</p>
+    {% if error %}<p class="warning">{{ error }}</p>{% endif %}
+    <form method="post" action="/setup" class="auth-form">
+      <label>Passwort
+        <input type="password" name="password" minlength="8" required autofocus>
+      </label>
+      <label>Passwort bestätigen
+        <input type="password" name="password_confirm" minlength="8" required>
+      </label>
+      <button type="submit">Passwort festlegen</button>
+    </form>
+  </main>
+</body>
+</html>

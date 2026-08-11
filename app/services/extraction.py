@@ -29,6 +29,9 @@ _DATE_KEYWORDS = ["Rechnungsdatum", "Datum", "Invoice Date", "Belegdatum"]
 _DATE_PATTERN = re.compile(r"\b(\d{1,2}[./]\d{1,2}[./]\d{2,4}|\d{4}-\d{2}-\d{2})\b")
 _VAT_RATE_PATTERN = re.compile(r"(\d{1,2}(?:[,.]\d+)?)\s?%")
 
+_IBAN_PATTERN = re.compile(r"\b([A-Z]{2}\d{2}(?:\s?[A-Z0-9]{1,4}){2,7})\b")
+_BIC_KEYWORDS = ["BIC", "SWIFT"]
+
 
 @dataclass
 class ExtractedFields:
@@ -139,6 +142,23 @@ def _extract_sender(text: str) -> str | None:
         candidate = line.strip()
         if len(candidate) >= 3 and not candidate[0].isdigit():
             return candidate
+    return None
+
+
+def find_iban(text: str) -> str | None:
+    """Findet die erste plausible IBAN im Text (fuer die Girocode-Prüfmaske, immer manuell zu prüfen)."""
+    match = _IBAN_PATTERN.search(text.replace("\n", " "))
+    if match:
+        return match.group(1).replace(" ", "")
+    return None
+
+
+def find_bic(text: str) -> str | None:
+    for keyword in _BIC_KEYWORDS:
+        pattern = re.compile(rf"{re.escape(keyword)}[:\s]{{0,5}}([A-Z0-9]{{8,11}})", re.IGNORECASE)
+        match = pattern.search(text)
+        if match:
+            return match.group(1).upper()
     return None
 
 

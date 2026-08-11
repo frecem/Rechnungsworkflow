@@ -13,9 +13,9 @@ from email.utils import parseaddr
 
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.models import SyncState
 from app.services.ingest import ingest_document
+from app.services.settings_service import get_settings
 
 ALLOWED_CONTENT_TYPES = {"application/pdf", "image/jpeg", "image/png"}
 
@@ -34,10 +34,10 @@ def _decode_maybe(value: str | None) -> str:
     )
 
 
-def _get_or_create_sync_state(db: Session) -> SyncState:
-    sync_state = db.query(SyncState).filter_by(mailbox=settings.imap_mailbox).first()
+def _get_or_create_sync_state(db: Session, mailbox: str) -> SyncState:
+    sync_state = db.query(SyncState).filter_by(mailbox=mailbox).first()
     if sync_state is None:
-        sync_state = SyncState(mailbox=settings.imap_mailbox, last_uid=0)
+        sync_state = SyncState(mailbox=mailbox, last_uid=0)
         db.add(sync_state)
         db.commit()
         db.refresh(sync_state)
@@ -62,10 +62,11 @@ def _extract_attachments(msg: email.message.Message) -> list[tuple[str, str, byt
 
 
 def sync_new_invoices(db: Session) -> dict:
+    settings = get_settings(db)
     if not settings.imap_configured:
-        raise ImapNotConfigured("IMAP ist nicht konfiguriert (.env)")
+        raise ImapNotConfigured("IMAP ist nicht konfiguriert (Einstellungen)")
 
-    sync_state = _get_or_create_sync_state(db)
+    sync_state = _get_or_create_sync_state(db, settings.imap_mailbox)
     new_invoices = 0
     duplicates = 0
     highest_uid = sync_state.last_uid

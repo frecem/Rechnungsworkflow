@@ -130,4 +130,127 @@ body {
 
 .warning { color: #b45309; }
 .info { color: #1b5e20; }
+
+.auth-container {
+  max-width: 380px;
+  margin-top: 4rem;
+}
+
+.auth-form label {
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.auth-form input {
+  width: 100%;
+  padding: 0.5rem;
+  box-sizing: border-box;
+  margin-top: 0.3rem;
+}
+
+.settings-form fieldset {
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.settings-form label {
+  display: block;
+  margin-bottom: 0.75rem;
+}
+
+.settings-form input, .settings-form select {
+  width: 100%;
+  max-width: 400px;
+  padding: 0.4rem;
+  box-sizing: border-box;
+  margin-top: 0.2rem;
+  display: block;
+}
+
+.hint {
+  font-weight: normal;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.board-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.board {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding-bottom: 1rem;
+}
+
+.board-column {
+  background: rgba(127, 127, 127, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 260px;
+  max-width: 260px;
+  padding: 0.75rem;
+  flex-shrink: 0;
+}
+
+.board-column h2 {
+  font-size: 1rem;
+  margin: 0 0 0.5rem;
+}
+
+.board-column-body {
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.board-card {
+  background: Canvas;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  cursor: grab;
+}
+
+.board-card.dragging {
+  opacity: 0.4;
+}
+
+.board-card-sender {
+  font-weight: bold;
+  margin-top: 0.3rem;
+}
+
+.board-card-amount {
+  font-size: 0.9rem;
+}
+
+.board-card-due {
+  font-size: 0.8rem;
+  color: #b45309;
+}
+
+.board-card-link {
+  display: inline-block;
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.inline-form {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.radio-label {
+  display: flex !important;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: normal;
+}
 .meta { margin-top: 1.5rem; color: var(--muted); font-size: 0.9rem; }

@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal
 
-from app.services.extraction import extract_fields, parse_de_amount
+from app.services.extraction import extract_fields, find_bic, find_iban, parse_de_amount
 
 SAMPLE_INVOICE_TEXT = """
 Musterfirma GmbH
@@ -72,3 +72,21 @@ def test_extract_fields_vat_amount():
 def test_extract_fields_sender():
     fields = extract_fields(SAMPLE_INVOICE_TEXT)
     assert fields.sender_name == "Musterfirma GmbH"
+
+
+def test_find_iban():
+    text = "Bitte ueberweisen Sie an IBAN DE89 3704 0044 0532 0130 00 unter Angabe der Rechnungsnummer."
+    assert find_iban(text) == "DE89370400440532013000"
+
+
+def test_find_iban_none_when_absent():
+    assert find_iban("Kein Bankkonto hier erwaehnt.") is None
+
+
+def test_find_bic():
+    text = "Bank: Musterbank\nBIC: COBADEFFXXX\nIBAN: DE89370400440532013000"
+    assert find_bic(text) == "COBADEFFXXX"
+
+
+def test_find_bic_none_when_absent():
+    assert find_bic("Keine Bankverbindung angegeben.") is None

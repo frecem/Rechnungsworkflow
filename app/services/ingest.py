@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.models import Invoice
-from app.services import extraction, ocr, status, storage
+from app.services import board_service, extraction, ocr, status, storage
 
 
 def ingest_document(
@@ -50,4 +50,5 @@ def ingest_document(
     db.refresh(invoice)
 
     status.change_status(db, invoice, "extracted")
+    board_service.assign_to_default_column(db, invoice)
     return invoice, True

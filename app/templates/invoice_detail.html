@@ -76,22 +76,17 @@
 
     {% if invoice.status == "approved" %}
     <div class="forward-box">
-      <h3>Weiterleiten</h3>
-      {% if smtp_configured %}
-      <form method="post" action="/invoices/{{ invoice.id }}/forward">
-        <label>Empfänger-E-Mail
-          <input type="email" name="recipient" value="{{ default_recipient or '' }}" required>
-        </label>
-        <button type="submit">Per E-Mail weiterleiten</button>
-      </form>
-      {% else %}
-        <p>SMTP ist nicht konfiguriert (.env). Weiterleitung per E-Mail ist deaktiviert.</p>
-      {% endif %}
+      <h3>Girocode &amp; Weiterleitung</h3>
+      <p>Zahlungsdaten prüfen, Girocode erzeugen und die Rechnung an Steuer-App/Paperless-ngx weiterleiten.</p>
+      <a href="/invoices/{{ invoice.id }}/girocode"><button type="button">Girocode erstellen &amp; weiterleiten</button></a>
     </div>
     {% endif %}
 
     {% if invoice.status == "forwarded" %}
-      <p>Weitergeleitet an <strong>{{ invoice.forwarded_to }}</strong> am {{ invoice.forwarded_at }}.</p>
+      <div class="forward-box">
+        {% if invoice.girocode_sent_at %}<p>Girocode gesendet am {{ invoice.girocode_sent_at }}.</p>{% endif %}
+        <p>Weitergeleitet an <strong>{{ invoice.forwarded_to }}</strong> am {{ invoice.forwarded_at }}.</p>
+      </div>
     {% endif %}
 
     <details class="meta">

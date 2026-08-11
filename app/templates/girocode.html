@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Girocode – Rechnung #{{ invoice.id }}{% endblock %}
+{% block content %}
+<a href="/invoices/{{ invoice.id }}">&larr; zurück zur Rechnung</a>
+<h1>Girocode prüfen &amp; Rechnung weiterleiten</h1>
+<p>Bitte die Zahlungsdaten sorgfältig gegen die Original-Rechnung prüfen, bevor der Girocode erstellt wird.</p>
+
+{% if error %}<p class="warning">{{ error }}</p>{% endif %}
+
+{% if not girocode_email %}
+  <p class="warning">Keine Girocode-Empfänger-Adresse in den <a href="/settings">Einstellungen</a> hinterlegt.</p>
+{% endif %}
+
+<div class="detail-grid">
+  <div class="preview">
+    {% if invoice.file_mime_type == "application/pdf" %}
+      <iframe src="/invoices/{{ invoice.id }}/file" title="Beleg-Vorschau"></iframe>
+    {% else %}
+      <img src="/invoices/{{ invoice.id }}/file" alt="Beleg-Vorschau">
+    {% endif %}
+  </div>
+
+  <div class="fields">
+    <form method="post" action="/invoices/{{ invoice.id }}/girocode">
+      <label>Zahlungsempfänger (Name)
+        <input type="text" name="recipient_name" value="{{ prefill.recipient_name }}" maxlength="70" required>
+      </label>
+      <label>IBAN <span class="hint">(aus Beleg vorbefüllt, bitte prüfen)</span>
+        <input type="text" name="iban" value="{{ prefill.iban }}" required>
+      </label>
+      <label>BIC <span class="hint">(optional)</span>
+        <input type="text" name="bic" value="{{ prefill.bic }}">
+      </label>
+      <label>Betrag (EUR)
+        <input type="text" name="amount" value="{{ prefill.amount }}" required>
+      </label>
+      <label>Verwendungszweck
+        <input type="text" name="reference" value="{{ prefill.reference }}" maxlength="140">
+      </label>
+
+      <fieldset>
+        <legend>Rechnung weiterleiten an</legend>
+        {% for target in forward_targets %}
+        <label class="radio-label">
+          <input type="radio" name="forward_target" value="{{ target }}" {% if target == default_forward_target %}checked{% endif %}>
+          {% if target == "steuer" %}Steuer-App{% if steuer_email %} ({{ steuer_email }}){% endif %}
+          {% elif target == "paperless" %}Paperless-ngx{% if paperless_email %} ({{ paperless_email }}){% endif %}
+          {% else %}Beides{% endif %}
+        </label>
+        {% endfor %}
+      </fieldset>
+
+      <button type="submit" {% if not girocode_email %}disabled{% endif %}>
+        Girocode erstellen, senden &amp; Rechnung weiterleiten
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

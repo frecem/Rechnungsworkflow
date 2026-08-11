@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Spalten verwalten – Rechnungsworkflow{% endblock %}
+{% block content %}
+<a href="/board">&larr; zurück zum Board</a>
+<h1>Spalten verwalten</h1>
+
+<table class="invoice-table">
+  <thead>
+    <tr><th>Name</th><th>Reihenfolge</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for column in columns %}
+    <tr>
+      <td>
+        <form method="post" action="/board/columns/{{ column.id }}/rename" class="inline-form">
+          <input type="text" name="name" value="{{ column.name }}">
+          <button type="submit">Umbenennen</button>
+        </form>
+      </td>
+      <td>
+        <form method="post" action="/board/columns/{{ column.id }}/move" class="inline-form">
+          <input type="hidden" name="direction" value="up">
+          <button type="submit">&uarr;</button>
+        </form>
+        <form method="post" action="/board/columns/{{ column.id }}/move" class="inline-form">
+          <input type="hidden" name="direction" value="down">
+          <button type="submit">&darr;</button>
+        </form>
+      </td>
+      <td>
+        <form method="post" action="/board/columns/{{ column.id }}/delete" class="inline-form"
+              onsubmit="return confirm('Spalte löschen? Rechnungen wandern in die nächste Spalte.');">
+          <button type="submit" class="btn-reject">Löschen</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Neue Spalte</h2>
+<form method="post" action="/board/columns" class="inline-form">
+  <input type="text" name="name" placeholder="z.B. Bezahlen bis diese Woche" required>
+  <button type="submit">Anlegen</button>
+</form>
+{% endblock %}

@@ -7,11 +7,11 @@ from fastapi.responses import RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.database import get_db
-from app.models import STATUSES, Invoice
-from app.services import storage
-from app.services.smtp_client import SmtpNotConfigured, send_invoice
+from app.models import FORWARD_TARGETS, STATUSES, Invoice
+from app.services import extraction, girocode, storage
+from app.services.settings_service import get_settings
+from app.services.smtp_client import SmtpNotConfigured, send_girocode, send_invoice_copy
 from app.services.status import InvalidStatusTransition, change_status
 
 router = APIRouter()
@@ -70,14 +70,13 @@ def list_invoices(request: Request, status: str | None = None, q: str | None = N
 @router.get("/invoices/{invoice_id}")
 def invoice_detail(request: Request, invoice_id: int, db: Session = Depends(get_db)):
     invoice = _get_invoice_or_404(db, invoice_id)
+    settings = get_settings(db)
     return templates.TemplateResponse(
         request,
         "invoice_detail.html",
         {
             "invoice": invoice,
             "categories": settings.category_list,
-            "default_recipient": settings.forward_default_recipient,
-            "smtp_configured": settings.smtp_configured,
         },
     )
 
@@ -147,18 +146,130 @@ def reject_invoice(invoice_id: int, note: str = Form(""), db: Session = Depends(
     return RedirectResponse(f"/invoices/{invoice_id}", status_code=303)
 
 
-@router.post("/invoices/{invoice_id}/forward")
-def forward_invoice(invoice_id: int, recipient: str = Form(...), db: Session = Depends(get_db)):
+@router.get("/invoices/{invoice_id}/girocode")
+def girocode_form(request: Request, invoice_id: int, db: Session = Depends(get_db)):
     invoice = _get_invoice_or_404(db, invoice_id)
+    if invoice.status != "approved":
+        raise HTTPException(status_code=400, detail="Rechnung muss zuerst freigegeben werden")
+
+    settings = get_settings(db)
+    raw_text = invoice.raw_extracted_text or ""
+
+    prefill = {
+        "recipient_name": invoice.payment_recipient_name or invoice.sender_name or "",
+        "iban": invoice.payment_iban or extraction.find_iban(raw_text) or "",
+        "bic": invoice.payment_bic or extraction.find_bic(raw_text) or "",
+        "amount": invoice.amount_gross or "",
+        "reference": invoice.payment_reference
+        or (f"Rechnung {invoice.invoice_number}" if invoice.invoice_number else ""),
+    }
+
+    return templates.TemplateResponse(
+        request,
+        "girocode.html",
+        {
+            "invoice": invoice,
+            "prefill": prefill,
+            "forward_targets": FORWARD_TARGETS,
+            "default_forward_target": settings.default_forward_target,
+            "girocode_email": settings.girocode_email,
+            "steuer_email": settings.steuer_email,
+            "paperless_email": settings.paperless_email,
+        },
+    )
+
+
+@router.post("/invoices/{invoice_id}/girocode")
+def girocode_submit(
+    request: Request,
+    invoice_id: int,
+    recipient_name: str = Form(...),
+    iban: str = Form(...),
+    bic: str = Form(""),
+    amount: str = Form(...),
+    reference: str = Form(""),
+    forward_target: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    invoice = _get_invoice_or_404(db, invoice_id)
+    if invoice.status != "approved":
+        raise HTTPException(status_code=400, detail="Rechnung muss zuerst freigegeben werden")
+
+    settings = get_settings(db)
+
+    def render_error(message: str):
+        return templates.TemplateResponse(
+            request,
+            "girocode.html",
+            {
+                "invoice": invoice,
+                "prefill": {
+                    "recipient_name": recipient_name,
+                    "iban": iban,
+                    "bic": bic,
+                    "amount": amount,
+                    "reference": reference,
+                },
+                "forward_targets": FORWARD_TARGETS,
+                "default_forward_target": forward_target,
+                "girocode_email": settings.girocode_email,
+                "steuer_email": settings.steuer_email,
+                "paperless_email": settings.paperless_email,
+                "error": message,
+            },
+            status_code=400,
+        )
+
+    parsed_amount = _parse_decimal(amount)
+    if parsed_amount is None:
+        return render_error("Betrag ist ungültig.")
+    if forward_target not in FORWARD_TARGETS:
+        return render_error("Ungültiges Weiterleitungsziel.")
+    if not settings.girocode_email:
+        return render_error("Keine Girocode-Empfänger-Adresse in den Einstellungen hinterlegt.")
+
+    target_emails: list[str] = []
+    if forward_target in ("steuer", "both"):
+        if not settings.steuer_email:
+            return render_error("Keine Steuer-E-Mail-Adresse in den Einstellungen hinterlegt.")
+        target_emails.append(settings.steuer_email)
+    if forward_target in ("paperless", "both"):
+        if not settings.paperless_email:
+            return render_error("Keine Paperless-ngx-E-Mail-Adresse in den Einstellungen hinterlegt.")
+        target_emails.append(settings.paperless_email)
 
     try:
-        send_invoice(invoice, recipient)
-    except SmtpNotConfigured as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except (smtplib.SMTPException, OSError) as exc:
-        raise HTTPException(status_code=502, detail=f"Versand fehlgeschlagen: {exc}") from exc
+        payload = girocode.build_epc_payload(recipient_name, iban, bic or None, parsed_amount, reference)
+    except girocode.InvalidPaymentData as exc:
+        return render_error(str(exc))
 
-    invoice.forwarded_to = recipient
+    invoice.payment_recipient_name = recipient_name
+    invoice.payment_iban = girocode.normalize_iban(iban)
+    invoice.payment_bic = (bic or None) and bic.strip().upper()
+    invoice.payment_reference = reference
+    db.commit()
+
+    png_bytes = girocode.generate_qr_png(payload)
+
+    try:
+        send_girocode(db, invoice, settings.girocode_email, png_bytes)
+    except SmtpNotConfigured as exc:
+        return render_error(str(exc))
+    except (smtplib.SMTPException, OSError) as exc:
+        return render_error(f"Girocode-Versand fehlgeschlagen: {exc}")
+
+    invoice.girocode_sent_at = datetime.utcnow()
+    db.commit()
+
+    try:
+        for target_email in target_emails:
+            send_invoice_copy(db, invoice, target_email)
+    except (smtplib.SMTPException, OSError) as exc:
+        return render_error(
+            f"Girocode wurde versendet, aber die Weiterleitung der Rechnung ist fehlgeschlagen: {exc}"
+        )
+
+    invoice.forwarded_to = ", ".join(target_emails)
     invoice.forwarded_at = datetime.utcnow()
     db.commit()
 
