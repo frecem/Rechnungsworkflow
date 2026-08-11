@@ -128,6 +128,14 @@
 
 <h2>Backup</h2>
 <p>Lädt ein ZIP mit einer konsistenten Kopie der Datenbank und allen Belegdateien.</p>
+{% if settings.last_backup_at %}
+  <p>Letztes Backup: {{ settings.last_backup_at.strftime("%d.%m.%Y %H:%M") }}</p>
+{% else %}
+  <p>Noch kein Backup heruntergeladen.</p>
+{% endif %}
+{% if backup_overdue %}
+  <p class="warning">Backup ist überfällig – bitte ein aktuelles herunterladen.</p>
+{% endif %}
 <a href="/settings/backup"><button type="button">Backup herunterladen</button></a>
 
 <h2>Passwort ändern</h2>

@@ -1,8 +1,10 @@
 import io
 import sqlite3
 import zipfile
+from datetime import date, datetime, timedelta
 
-from app.services.backup import backup_filename, build_backup_zip
+from app.models import AppSettings
+from app.services.backup import BACKUP_REMINDER_DAYS, backup_filename, build_backup_zip, is_backup_overdue
 
 
 def test_backup_filename_has_zip_extension():
@@ -50,3 +52,30 @@ def test_build_backup_zip_includes_invoice_files(tmp_path, monkeypatch):
 
     assert "invoices/2026/test.pdf" in zf.namelist()
     assert zf.read("invoices/2026/test.pdf") == b"%PDF-1.4 fake"
+
+
+def test_is_backup_overdue_when_never_backed_up():
+    settings = AppSettings(id=1, last_backup_at=None)
+    assert is_backup_overdue(settings) is True
+
+
+def test_is_backup_overdue_false_shortly_after_backup():
+    settings = AppSettings(id=1, last_backup_at=datetime.utcnow())
+    assert is_backup_overdue(settings, today=date.today()) is False
+
+
+def test_is_backup_overdue_true_after_threshold():
+    today = date.today()
+    settings = AppSettings(
+        id=1, last_backup_at=datetime.combine(today - timedelta(days=BACKUP_REMINDER_DAYS), datetime.min.time())
+    )
+    assert is_backup_overdue(settings, today=today) is True
+
+
+def test_is_backup_overdue_false_just_below_threshold():
+    today = date.today()
+    settings = AppSettings(
+        id=1,
+        last_backup_at=datetime.combine(today - timedelta(days=BACKUP_REMINDER_DAYS - 1), datetime.min.time()),
+    )
+    assert is_backup_overdue(settings, today=today) is False

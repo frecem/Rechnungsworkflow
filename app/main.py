@@ -14,7 +14,7 @@ from app.services.imap_client import sync_new_invoices_standalone
 from app.services.reminders import run_reminder_check_standalone
 from app.services.settings_service import get_settings
 
-PUBLIC_PATHS = {"/login", "/setup"}
+PUBLIC_PATHS = {"/login", "/setup", "/forgot-password", "/reset-password"}
 DEFAULT_SESSION_SECRET_KEY = "change-me-please-a-long-random-string"
 
 logger = logging.getLogger(__name__)

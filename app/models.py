@@ -135,6 +135,11 @@ class AppSettings(Base):
     imap_consecutive_failures: Mapped[int] = mapped_column(default=0)
     imap_failure_notified_at: Mapped[datetime | None] = mapped_column(DateTime)
 
+    password_reset_token: Mapped[str | None]
+    password_reset_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    last_backup_at: Mapped[datetime | None] = mapped_column(DateTime)
+
     categories: Mapped[str] = mapped_column(default="Büro,Software,Reise,Sonstiges")
 
     @property

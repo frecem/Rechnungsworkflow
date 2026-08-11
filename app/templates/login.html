@@ -10,6 +10,9 @@
 <body>
   <main class="container auth-container">
     <h1>Rechnungsworkflow</h1>
+    {% if password_reset_done %}
+      <p class="info">Passwort erfolgreich geändert. Bitte anmelden.</p>
+    {% endif %}
     {% if locked %}
       <p class="warning">Zu viele Fehlversuche. Bitte in {{ unlock_minutes }} Minute(n) erneut versuchen.</p>
     {% elif error %}
@@ -21,6 +24,7 @@
       </label>
       <button type="submit">Anmelden</button>
     </form>
+    <p class="hint"><a href="/forgot-password">Passwort vergessen?</a></p>
   </main>
 </body>
 </html>

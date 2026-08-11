@@ -9,13 +9,16 @@ import io
 import sqlite3
 import tempfile
 import zipfile
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 from app.config import settings
+from app.models import AppSettings
 from app.services.storage import STORAGE_ROOT
 
 _DB_PATH = Path(settings.database_url.removeprefix("sqlite:///"))
+
+BACKUP_REMINDER_DAYS = 30
 
 
 def _snapshot_database() -> bytes:
@@ -56,3 +59,11 @@ def build_backup_zip() -> bytes:
 def backup_filename() -> str:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     return f"rechnungsworkflow_backup_{timestamp}.zip"
+
+
+def is_backup_overdue(app_settings: AppSettings, today: date | None = None) -> bool:
+    """True, wenn noch nie oder seit BACKUP_REMINDER_DAYS kein Backup mehr heruntergeladen wurde."""
+    if app_settings.last_backup_at is None:
+        return True
+    today = today or date.today()
+    return (today - app_settings.last_backup_at.date()).days >= BACKUP_REMINDER_DAYS

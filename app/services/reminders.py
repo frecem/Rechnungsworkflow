@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models import Invoice
+from app.services.backup import BACKUP_REMINDER_DAYS, is_backup_overdue
 from app.services.settings_service import get_settings
 from app.services.smtp_client import SmtpNotConfigured, send_email
 from app.services.stats import RecurringGroup, recurring_overview
@@ -49,7 +50,12 @@ def overdue_recurring_groups(db: Session, today: date | None = None) -> list[Rec
     return [g for g in recurring_overview(invoices, today=today) if g.is_overdue]
 
 
-def _format_digest(invoices: list[Invoice], overdue_recurring: list[RecurringGroup], today: date) -> str:
+def _format_digest(
+    invoices: list[Invoice],
+    overdue_recurring: list[RecurringGroup],
+    backup_overdue: bool,
+    today: date,
+) -> str:
     lines = [f"Erinnerung ({today.isoformat()}):", ""]
 
     if invoices:
@@ -71,6 +77,13 @@ def _format_digest(invoices: list[Invoice], overdue_recurring: list[RecurringGro
             )
         lines.append("")
 
+    if backup_overdue:
+        lines.append(
+            f"Backup überfällig: seit mind. {BACKUP_REMINDER_DAYS} Tagen kein Backup "
+            "mehr heruntergeladen (Einstellungen > Backup)."
+        )
+        lines.append("")
+
     lines.append("Zum Bearbeiten: Rechnungsübersicht in Rechnungsworkflow öffnen.")
     return "\n".join(lines)
 
@@ -89,15 +102,18 @@ def run_reminder_check(db: Session) -> int:
 
     invoices = due_invoices_for_reminder(db, settings.reminder_days_before)
     overdue_recurring = overdue_recurring_groups(db)
-    if not invoices and not overdue_recurring:
+    backup_overdue = is_backup_overdue(settings)
+    if not invoices and not overdue_recurring and not backup_overdue:
         return 0
 
-    body = _format_digest(invoices, overdue_recurring, date.today())
+    body = _format_digest(invoices, overdue_recurring, backup_overdue, date.today())
     subject_parts = []
     if invoices:
         subject_parts.append(f"{len(invoices)} Rechnung(en)")
     if overdue_recurring:
         subject_parts.append(f"{len(overdue_recurring)} wiederkehrende Zahlung(en)")
+    if backup_overdue:
+        subject_parts.append("Backup überfällig")
 
     try:
         send_email(

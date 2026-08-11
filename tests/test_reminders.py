@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -94,6 +94,7 @@ def _settings(db, **overrides):
         smtp_password="secret",
         reminder_email="reminders@example.invalid",
         reminder_days_before=3,
+        last_backup_at=datetime.utcnow(),
     )
     defaults.update(overrides)
     settings = AppSettings(**defaults)
@@ -192,6 +193,17 @@ def test_run_reminder_check_includes_overdue_recurring_even_without_due_invoices
     body = mock_send.call_args.kwargs["body"]
     assert "Vermieter GmbH" in body
     assert "wiederkehrend" in body.lower() or "erwarteter" in body.lower()
+
+
+def test_run_reminder_check_includes_backup_overdue_even_without_due_invoices(db):
+    _settings(db, last_backup_at=None)
+
+    with patch("app.services.reminders.send_email") as mock_send:
+        count = run_reminder_check(db)
+
+    assert count == 0
+    mock_send.assert_called_once()
+    assert "Backup" in mock_send.call_args.kwargs["body"]
 
 
 def test_run_reminder_check_no_alert_for_recurring_within_grace_period(db):

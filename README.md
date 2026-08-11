@@ -229,6 +229,27 @@ Belegdateien herunter. Zum Wiederherstellen: `storage/db.sqlite3` und
 `storage/invoices/` durch den Inhalt des ZIPs ersetzen. Da alles ausschließlich lokal
 liegt, gibt es keine automatische Cloud-Sicherung – regelmäßig manuell exportieren.
 
+Der Zeitpunkt des letzten Downloads wird gespeichert und auf der Einstellungen-Seite
+angezeigt. Liegt er mehr als 30 Tage zurück (oder wurde noch nie ein Backup
+heruntergeladen), erscheint dort eine Warnung, und die tägliche
+Fälligkeits-Erinnerungs-Mail (siehe oben) weist zusätzlich darauf hin.
+
+## Passwort vergessen
+
+Über **"Passwort vergessen?"** auf der Login-Seite lässt sich ein Reset-Link an die in
+den Einstellungen hinterlegte Erinnerungs-Adresse schicken (SMTP muss konfiguriert
+sein). Der Link ist 30 Minuten gültig; eine erneute Anfrage während ein gültiger Link
+existiert, verschickt denselben Link erneut statt einen neuen Token zu erzeugen. Ist
+SMTP nicht erreichbar oder keine Erinnerungs-Adresse hinterlegt, lässt sich das
+Passwort stattdessen per CLI direkt auf dem Server zurücksetzen:
+
+```bash
+python -m scripts.reset_password
+```
+
+Fragt interaktiv (ohne Echo) nach dem neuen Passwort und setzt es direkt in der
+Datenbank, unabhängig von SMTP oder einem laufenden Reset-Link.
+
 ## Als App installieren (PWA)
 
 Die App liefert ein Web-App-Manifest samt Icons mit. Auf dem Smartphone/Tablet über
@@ -307,8 +328,10 @@ abgelehnter Rechnungen, Gruppierung nach Kategorie/Monat, Kategorie-Filter), die
 Gruppierung/Überfälligkeitserkennung wiederkehrender Zahlungen (inkl. "beendet"-Flag),
 das IMAP-Fehler-Alarm-Tracking (Zähler, einmaliger Alarm ab Schwellwert, Reset bei
 Erfolg), die Kategorie-Verwaltung (Anlegen/Umbenennen mit Kaskade auf bestehende
-Rechnungen/Löschen ohne Datenverlust) und die IMAP-/SMTP-Verbindungstests (Erfolg,
-Auth-Fehler, Verbindungsfehler, jeweils gemockt) – ohne Abhängigkeit von
+Rechnungen/Löschen ohne Datenverlust), die IMAP-/SMTP-Verbindungstests (Erfolg,
+Auth-Fehler, Verbindungsfehler, jeweils gemockt), die Backup-Überfälligkeitserkennung
+sowie den Passwort-Reset (Token-Erzeugung/-Wiederverwendung/-Ablauf, Versandfehler,
+gültiger/ungültiger/abgelaufener Token beim Abschluss) – ohne Abhängigkeit von
 Tesseract/Poppler oder einem echten Postfach, läuft daher überall.
 
 ## Manuelle Verifikation (bereits durchgeführt)
@@ -350,6 +373,17 @@ Wiederkehrende Zahlungen live getestet: Markierung inkl. Intervall wird korrekt
 gespeichert und in der Detailansicht vorbelegt angezeigt, Auswertungsseite zeigt die
 Gruppe mit korrekter Summe und markiert sie als überfällig, sobald Intervall +
 Kulanzfrist verstrichen sind.
+
+Passwort-Reset und Backup-Erinnerung live über HTTP getestet: Reset-Anfrage ohne
+konfigurierte Erinnerungs-Adresse/SMTP liefert eine klare Fehlermeldung statt eines
+Absturzes; bei konfiguriertem, aber unerreichbarem SMTP-Host wird der Token trotzdem
+erzeugt (CLI-Fallback bleibt nutzbar) und der Versandfehler abgefangen; ein gültiger
+Reset-Link setzt das Passwort erfolgreich (altes Passwort danach abgelehnt, neues
+akzeptiert), ein manipulierter Token wird als ungültig erkannt, und der Token wird nach
+Gebrauch aus der Datenbank entfernt. `python -m scripts.reset_password` erfolgreich als
+CLI-Fallback getestet (Passwort direkt in der DB gesetzt, per Login verifiziert).
+Backup-Bereich zeigt vor dem ersten Download korrekt "noch kein Backup" plus
+Überfälligkeits-Warnung, nach dem Download das aktuelle Datum ohne Warnung.
 
 Bei diesem Test wurde außerdem ein echter Bug gefunden und behoben: der manuelle
 Fälligkeits-Check stürzte mit HTTP 500 ab, wenn SMTP zwar konfiguriert, der Host aber

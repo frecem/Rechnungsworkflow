@@ -4,7 +4,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.services import login_guard
+from app.services import login_guard, password_reset
 from app.services.auth import hash_password, verify_password
 from app.services.settings_service import get_settings
 
@@ -47,13 +47,13 @@ def setup_submit(
 
 
 @router.get("/login")
-def login_form(request: Request, db: Session = Depends(get_db)):
+def login_form(request: Request, reset: str = "", db: Session = Depends(get_db)):
     settings = get_settings(db)
     if not settings.password_set:
         return RedirectResponse("/setup", status_code=303)
     if request.session.get("authenticated"):
         return RedirectResponse("/", status_code=303)
-    return templates.TemplateResponse(request, "login.html", {})
+    return templates.TemplateResponse(request, "login.html", {"password_reset_done": bool(reset)})
 
 
 @router.post("/login")
@@ -82,3 +82,51 @@ def login_submit(request: Request, password: str = Form(...), db: Session = Depe
 def logout(request: Request):
     request.session.clear()
     return RedirectResponse("/login", status_code=303)
+
+
+@router.get("/forgot-password")
+def forgot_password_form(request: Request, db: Session = Depends(get_db)):
+    settings = get_settings(db)
+    if not settings.password_set:
+        return RedirectResponse("/setup", status_code=303)
+    return templates.TemplateResponse(request, "forgot_password.html", {})
+
+
+@router.post("/forgot-password")
+def forgot_password_submit(request: Request, db: Session = Depends(get_db)):
+    ok, message = password_reset.request_reset(db, str(request.base_url))
+    return templates.TemplateResponse(request, "forgot_password.html", {"result": message, "ok": ok})
+
+
+@router.get("/reset-password")
+def reset_password_form(request: Request, token: str = "", db: Session = Depends(get_db)):
+    if not password_reset.validate_token(db, token):
+        return templates.TemplateResponse(request, "reset_password.html", {"invalid": True})
+    return templates.TemplateResponse(request, "reset_password.html", {"token": token})
+
+
+@router.post("/reset-password")
+def reset_password_submit(
+    request: Request,
+    token: str = Form(...),
+    new_password: str = Form(...),
+    new_password_confirm: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    if not password_reset.validate_token(db, token):
+        return templates.TemplateResponse(request, "reset_password.html", {"invalid": True}, status_code=400)
+
+    if len(new_password) < 8 or new_password != new_password_confirm:
+        return templates.TemplateResponse(
+            request,
+            "reset_password.html",
+            {
+                "token": token,
+                "error": "Passwort muss mind. 8 Zeichen lang sein und mit der Bestätigung übereinstimmen.",
+            },
+            status_code=400,
+        )
+
+    password_reset.complete_reset(db, token, new_password)
+    login_guard.register_success()
+    return RedirectResponse("/login?reset=1", status_code=303)

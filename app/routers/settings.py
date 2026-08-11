@@ -1,13 +1,15 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import FORWARD_TARGETS
+from app.models import FORWARD_TARGETS, AppSettings
 from app.services import imap_client, smtp_client
 from app.services.auth import hash_password, verify_password
-from app.services.backup import backup_filename, build_backup_zip
+from app.services.backup import backup_filename, build_backup_zip, is_backup_overdue
 from app.services.reminders import run_reminder_check
 from app.services.settings_service import add_category, delete_category, get_settings, rename_category
 
@@ -15,12 +17,20 @@ router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
 
+def _settings_response(request: Request, settings: AppSettings, extra: dict | None = None, status_code: int = 200):
+    context = {
+        "settings": settings,
+        "forward_targets": FORWARD_TARGETS,
+        "backup_overdue": is_backup_overdue(settings),
+    }
+    context.update(extra or {})
+    return templates.TemplateResponse(request, "settings.html", context, status_code=status_code)
+
+
 @router.get("/settings")
 def settings_form(request: Request, db: Session = Depends(get_db)):
     settings = get_settings(db)
-    return templates.TemplateResponse(
-        request, "settings.html", {"settings": settings, "forward_targets": FORWARD_TARGETS}
-    )
+    return _settings_response(request, settings)
 
 
 @router.post("/settings")
@@ -69,11 +79,7 @@ def settings_save(
 
     db.commit()
 
-    return templates.TemplateResponse(
-        request,
-        "settings.html",
-        {"settings": settings, "forward_targets": FORWARD_TARGETS, "saved": True},
-    )
+    return _settings_response(request, settings, {"saved": True})
 
 
 @router.post("/settings/test-imap")
@@ -102,11 +108,7 @@ def test_imap(
     settings.imap_user = imap_user or None
     settings.imap_mailbox = imap_mailbox or "INBOX"
 
-    return templates.TemplateResponse(
-        request,
-        "settings.html",
-        {"settings": settings, "forward_targets": FORWARD_TARGETS, "imap_test_result": imap_test_result},
-    )
+    return _settings_response(request, settings, {"imap_test_result": imap_test_result})
 
 
 @router.post("/settings/test-smtp")
@@ -130,11 +132,7 @@ def test_smtp(
     settings.smtp_port = smtp_port
     settings.smtp_user = smtp_user or None
 
-    return templates.TemplateResponse(
-        request,
-        "settings.html",
-        {"settings": settings, "forward_targets": FORWARD_TARGETS, "smtp_test_result": smtp_test_result},
-    )
+    return _settings_response(request, settings, {"smtp_test_result": smtp_test_result})
 
 
 @router.post("/settings/categories")
@@ -159,16 +157,17 @@ def delete_category_route(name: str = Form(...), db: Session = Depends(get_db)):
 def check_reminders_now(request: Request, db: Session = Depends(get_db)):
     settings = get_settings(db)
     count = run_reminder_check(db)
-    return templates.TemplateResponse(
-        request,
-        "settings.html",
-        {"settings": settings, "forward_targets": FORWARD_TARGETS, "reminder_check_result": count},
-    )
+    return _settings_response(request, settings, {"reminder_check_result": count})
 
 
 @router.get("/settings/backup")
-def download_backup():
+def download_backup(db: Session = Depends(get_db)):
     content = build_backup_zip()
+
+    settings = get_settings(db)
+    settings.last_backup_at = datetime.utcnow()
+    db.commit()
+
     return Response(
         content=content,
         media_type="application/zip",
@@ -193,18 +192,9 @@ def change_password(
         error = "Neues Passwort muss mind. 8 Zeichen lang sein und mit der Bestätigung übereinstimmen."
 
     if error:
-        return templates.TemplateResponse(
-            request,
-            "settings.html",
-            {"settings": settings, "forward_targets": FORWARD_TARGETS, "password_error": error},
-            status_code=400,
-        )
+        return _settings_response(request, settings, {"password_error": error}, status_code=400)
 
     settings.admin_password_hash = hash_password(new_password)
     db.commit()
 
-    return templates.TemplateResponse(
-        request,
-        "settings.html",
-        {"settings": settings, "forward_targets": FORWARD_TARGETS, "password_saved": True},
-    )
+    return _settings_response(request, settings, {"password_saved": True})
