@@ -1,0 +1,133 @@
+:root {
+  color-scheme: light dark;
+  --border: #d0d0d0;
+  --muted: #666;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar .brand {
+  font-weight: bold;
+  text-decoration: none;
+  font-size: 1.1rem;
+}
+
+.topbar nav a, .topbar nav button {
+  margin-left: 1rem;
+}
+
+.container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.filter-bar {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.invoice-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.invoice-table th, .invoice-table td {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.invoice-table tbody tr {
+  cursor: pointer;
+}
+
+.invoice-table tbody tr:hover {
+  background: rgba(127, 127, 127, 0.1);
+}
+
+.status {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+}
+
+.status-new { background: #eee; }
+.status-extracted { background: #fff3cd; }
+.status-reviewed { background: #cfe2ff; }
+.status-approved { background: #d1e7dd; }
+.status-rejected { background: #f8d7da; }
+.status-forwarded { background: #d4edda; }
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+}
+
+@media (max-width: 800px) {
+  .detail-grid { grid-template-columns: 1fr; }
+}
+
+.preview iframe, .preview img {
+  width: 100%;
+  min-height: 500px;
+  border: 1px solid var(--border);
+}
+
+.fields form label {
+  display: block;
+  margin-bottom: 0.75rem;
+}
+
+.fields input, .fields select, .fields textarea {
+  width: 100%;
+  padding: 0.4rem;
+  box-sizing: border-box;
+  margin-top: 0.2rem;
+}
+
+.low-confidence {
+  color: #b45309;
+  font-size: 0.8rem;
+}
+
+.actions {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-approve { background: #2e7d32; color: white; border: none; padding: 0.5rem 1rem; }
+.btn-reject { background: #c62828; color: white; border: none; padding: 0.5rem 1rem; }
+
+.forward-box {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.upload-form {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.warning { color: #b45309; }
+.info { color: #1b5e20; }
+.meta { margin-top: 1.5rem; color: var(--muted); font-size: 0.9rem; }

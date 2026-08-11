@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Übersicht – Rechnungsworkflow{% endblock %}
+{% block content %}
+<h1>Eingangsrechnungen</h1>
+
+{% if request.query_params.get("sync_new") is not none %}
+  <p class="info">E-Mail-Sync: {{ request.query_params.get("sync_new") }} neue Rechnung(en), {{ request.query_params.get("sync_dup") }} bereits bekannt.</p>
+{% endif %}
+{% if request.query_params.get("sync_error") == "not_configured" %}
+  <p class="warning">IMAP ist nicht konfiguriert (.env ausfüllen), E-Mail-Sync nicht möglich.</p>
+{% elif request.query_params.get("sync_error") == "connection" %}
+  <p class="warning">Verbindung zum Postfach fehlgeschlagen. Zugangsdaten/Host in .env prüfen.</p>
+{% endif %}
+
+<form method="get" action="/invoices" class="filter-bar">
+  <select name="status">
+    <option value="">Alle Status</option>
+    {% for s in statuses %}
+      <option value="{{ s }}" {% if s == current_status %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+  <input type="text" name="q" placeholder="Absender oder Rechnungsnr. suchen…" value="{{ q }}">
+  <button type="submit">Filtern</button>
+</form>
+
+{% if invoices %}
+<table class="invoice-table">
+  <thead>
+    <tr>
+      <th>Datum</th>
+      <th>Absender</th>
+      <th>Rechnungsnr.</th>
+      <th>Betrag</th>
+      <th>Kategorie</th>
+      <th>Status</th>
+      <th>Quelle</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for invoice in invoices %}
+    <tr onclick="window.location='/invoices/{{ invoice.id }}'">
+      <td>{{ invoice.invoice_date or "–" }}</td>
+      <td>{{ invoice.sender_name or "–" }}</td>
+      <td>{{ invoice.invoice_number or "–" }}</td>
+      <td>{% if invoice.amount_gross %}{{ "%.2f"|format(invoice.amount_gross) }} {{ invoice.currency }}{% else %}–{% endif %}</td>
+      <td>{{ invoice.category or "–" }}</td>
+      <td><span class="status status-{{ invoice.status }}">{{ invoice.status }}</span></td>
+      <td>{{ invoice.source_type }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>Keine Rechnungen gefunden. <a href="/upload">Jetzt eine hochladen</a>.</p>
+{% endif %}
+{% endblock %}

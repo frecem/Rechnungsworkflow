@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Rechnung #{{ invoice.id }} – Rechnungsworkflow{% endblock %}
+{% block content %}
+<a href="/invoices">&larr; zurück zur Übersicht</a>
+<h1>Rechnung #{{ invoice.id }} <span class="status status-{{ invoice.status }}">{{ invoice.status }}</span></h1>
+
+<div class="detail-grid">
+  <div class="preview">
+    {% if invoice.file_mime_type == "application/pdf" %}
+      <iframe src="/invoices/{{ invoice.id }}/file" title="Beleg-Vorschau"></iframe>
+    {% else %}
+      <img src="/invoices/{{ invoice.id }}/file" alt="Beleg-Vorschau">
+    {% endif %}
+  </div>
+
+  <div class="fields">
+    <form method="post" action="/invoices/{{ invoice.id }}/save">
+      <label>Absender {% if invoice.sender_name %}<span class="low-confidence">(geringe Konfidenz, bitte prüfen)</span>{% endif %}
+        <input type="text" name="sender_name" value="{{ invoice.sender_name or '' }}">
+      </label>
+      <label>Rechnungsnummer
+        <input type="text" name="invoice_number" value="{{ invoice.invoice_number or '' }}">
+      </label>
+      <label>Rechnungsdatum
+        <input type="date" name="invoice_date" value="{{ invoice.invoice_date or '' }}">
+      </label>
+      <label>Fälligkeitsdatum
+        <input type="date" name="due_date" value="{{ invoice.due_date or '' }}">
+      </label>
+      <label>Bruttobetrag
+        <input type="text" name="amount_gross" value="{{ invoice.amount_gross or '' }}">
+      </label>
+      <label>Nettobetrag
+        <input type="text" name="amount_net" value="{{ invoice.amount_net or '' }}">
+      </label>
+      <label>USt-Betrag
+        <input type="text" name="vat_amount" value="{{ invoice.vat_amount or '' }}">
+      </label>
+      <label>USt-Satz (%)
+        <input type="text" name="vat_rate" value="{{ invoice.vat_rate or '' }}">
+      </label>
+      <label>Währung
+        <input type="text" name="currency" value="{{ invoice.currency }}">
+      </label>
+      <label>Kategorie
+        <select name="category">
+          <option value="">– keine –</option>
+          {% for c in categories %}
+            <option value="{{ c }}" {% if c == invoice.category %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Notizen
+        <textarea name="notes">{{ invoice.notes or '' }}</textarea>
+      </label>
+      <button type="submit">Speichern</button>
+    </form>
+
+    <div class="actions">
+      {% if invoice.status in ("extracted", "reviewed") %}
+        <form method="post" action="/invoices/{{ invoice.id }}/approve" style="display:inline">
+          <button type="submit" class="btn-approve">Freigeben</button>
+        </form>
+      {% endif %}
+      {% if invoice.status in ("new", "extracted", "reviewed", "approved") %}
+        <form method="post" action="/invoices/{{ invoice.id }}/reject" style="display:inline">
+          <button type="submit" class="btn-reject">Ablehnen</button>
+        </form>
+      {% endif %}
+      {% if invoice.status == "rejected" %}
+        <form method="post" action="/invoices/{{ invoice.id }}/save" style="display:inline">
+          <button type="submit">Zurück zur Prüfung</button>
+        </form>
+      {% endif %}
+    </div>
+
+    {% if invoice.status == "approved" %}
+    <div class="forward-box">
+      <h3>Weiterleiten</h3>
+      {% if smtp_configured %}
+      <form method="post" action="/invoices/{{ invoice.id }}/forward">
+        <label>Empfänger-E-Mail
+          <input type="email" name="recipient" value="{{ default_recipient or '' }}" required>
+        </label>
+        <button type="submit">Per E-Mail weiterleiten</button>
+      </form>
+      {% else %}
+        <p>SMTP ist nicht konfiguriert (.env). Weiterleitung per E-Mail ist deaktiviert.</p>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if invoice.status == "forwarded" %}
+      <p>Weitergeleitet an <strong>{{ invoice.forwarded_to }}</strong> am {{ invoice.forwarded_at }}.</p>
+    {% endif %}
+
+    <details class="meta">
+      <summary>Details</summary>
+      <p>Quelle: {{ invoice.source_type }}{% if invoice.email_from %} ({{ invoice.email_from }}){% endif %}</p>
+      <p>Datei: {{ invoice.file_original_name }}</p>
+      <p>Angelegt: {{ invoice.created_at }}</p>
+    </details>
+  </div>
+</div>
+{% endblock %}
