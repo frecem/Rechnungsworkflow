@@ -108,7 +108,9 @@ Nach dem Login unter **Einstellungen** (`/settings`) hinterlegen:
 - Standard-Weiterleitungsziel (Steuer / Paperless / beides) – vorbelegt bei jeder
   Freigabe, pro Rechnung änderbar
 - **Fälligkeits-Erinnerung**: Erinnerungs-E-Mail-Adresse und Vorlaufzeit (Tage vor
-  Fälligkeit) – ohne hinterlegte Adresse ist die Funktion inaktiv
+  Fälligkeit) – ohne hinterlegte Adresse ist die Funktion inaktiv. Dieselbe Adresse
+  wird auch für den IMAP-Fehler-Alarm und überfällige wiederkehrende Zahlungen genutzt
+  (siehe unten)
 - Kategorien-Liste
 
 Die App startet auch ohne vollständig ausgefüllte Einstellungen; die jeweiligen
@@ -137,10 +139,11 @@ Fehlers.
 - **Übersicht** (`/invoices`): tabellarische Liste, filterbar nach Status, durchsuchbar
   nach Absender/Rechnungsnummer.
 - **Detailansicht**: Dateivorschau links, editierbares Formular rechts. Absender ist
-  das am wenigsten zuverlässige Feld und wird entsprechend markiert. Aktionen:
-  Speichern, Freigeben, Ablehnen. Nach Freigabe zusätzlich "Als bezahlt markieren"
-  (stoppt künftige Fälligkeits-Erinnerungen für diese Rechnung). Unten ein
-  aufklappbarer Verlauf aller Statuswechsel mit Zeitstempel.
+  das am wenigsten zuverlässige Feld und wird entsprechend markiert. "Wiederkehrend"
+  ankreuzbar mit Intervall in Tagen (siehe unten). Aktionen: Speichern, Freigeben,
+  Ablehnen. Nach Freigabe zusätzlich "Als bezahlt markieren" (stoppt künftige
+  Fälligkeits-Erinnerungen für diese Rechnung). Unten ein aufklappbarer Verlauf aller
+  Statuswechsel mit Zeitstempel.
 - **Girocode-Prüfmaske** (nach Freigabe): Zahlungsdaten (Empfänger, IBAN, BIC, Betrag,
   Verwendungszweck) werden aus dem Belegtext vorbefüllt (IBAN/BIC-Erkennung), müssen
   aber vor dem Absenden geprüft werden – die IBAN-Prüfsumme wird zusätzlich technisch
@@ -150,8 +153,11 @@ Fehlers.
   der Status zu `forwarded`.
 - **Auswertung** (`/stats`): Jahres-Übersicht als schneller Überblick vor der
   Steuererklärung – Gesamtsummen (Brutto/Netto/USt), Aufschlüsselung nach Kategorie
-  und nach Monat, Jahr per Dropdown wählbar. Zählt alle Rechnungen außer abgelehnten
-  mit (gruppiert nach Rechnungsdatum, nicht Fälligkeitsdatum).
+  und nach Monat, Jahr per Dropdown wählbar, zusätzlich per Kategorie filterbar
+  (Klick auf eine Kategorie in der Tabelle oder über das Dropdown). Zählt alle
+  Rechnungen außer abgelehnten mit (gruppiert nach Rechnungsdatum, nicht
+  Fälligkeitsdatum). Darunter eine separate, jahresunabhängige Übersicht aller
+  **wiederkehrenden Zahlungen** (siehe unten).
 - **CSV-Export** (`/export/csv`, optional mit `?status=&category=&date_from=&date_to=`):
   lädt eine `;`-getrennte CSV mit deutschem Dezimalformat (Komma statt Punkt). Netto/USt/Brutto
   sind getrennte Spalten, damit sich später bei Bedarf ein DATEV-Export ergänzen lässt, ohne
@@ -175,7 +181,27 @@ Erinnerungs-Adresse – sowohl für bald fällige als auch bereits überfällige
 Jede Rechnung wird nur einmal erinnert; "Als bezahlt markieren" oder ein manueller
 Check über den Button auf der Einstellungen-Seite (nützlich zum Testen der
 Konfiguration, ohne auf 7 Uhr zu warten) sind die beiden Wege, den Kreislauf zu
-beenden.
+beenden. Überfällige wiederkehrende Zahlungen (siehe unten) fließen in dieselbe
+Sammel-Mail ein.
+
+## Wiederkehrende Zahlungen
+
+Für Abos, Miete o.ä.: auf der Detailseite einer Rechnung "Wiederkehrend" ankreuzen und
+ein Intervall in Tagen angeben (z.B. 30 = monatlich, 365 = jährlich). Die Gruppierung
+erfolgt über den Absendernamen. Auf `/stats` erscheint eine eigene, jahresunabhängige
+Übersicht mit Summe, Anzahl, letzter Rechnung und erwartetem nächsten Termin je
+Absender. Bleibt der erwartete nächste Beleg mehr als 7 Tage über das Intervall hinaus
+aus, taucht das in der täglichen Erinnerungs-Mail auf (kein separater Job) – so lange,
+bis entweder eine neue Rechnung dieser Serie eintrifft oder die Markierung entfernt
+wird.
+
+## IMAP-Fehler-Alarm
+
+Schlägt der automatische stündliche E-Mail-Abruf 3 Mal in Folge fehl (z.B. abgelaufenes
+App-Passwort, falscher Host), wird **einmalig** eine Warn-Mail an die
+Erinnerungs-Adresse verschickt – keine Wiederholung bei jedem weiteren stündlichen
+Versuch, solange der Fehler anhält. Nach dem nächsten erfolgreichen Abruf wird der
+Zähler zurückgesetzt.
 
 ## Duplikaterkennung
 
@@ -261,11 +287,14 @@ pytest tests/
 Deckt ab: Extraktions-Heuristiken (inkl. IBAN/BIC-Erkennung), Datei-Speicherlogik, den
 EPC-Girocode-Payload-Aufbau inkl. IBAN-Prüfsummenvalidierung, die
 Fälligkeits-Erinnerungslogik (welche Rechnungen qualifizieren, Digest-Versand,
-Markieren als erinnert), die Login-Sperre, den Backup-Export (gültige, konsistente
-SQLite-Kopie inkl. aller Tabellen, Belegdateien im ZIP enthalten) und die
-Jahres-/Kategorie-Auswertung (Summenbildung, Ausschluss abgelehnter Rechnungen,
-Gruppierung nach Kategorie/Monat) – ohne Abhängigkeit von Tesseract/Poppler oder
-einem echten Postfach, läuft daher überall.
+Markieren als erinnert, Verhalten bei SMTP-Verbindungsfehlern), die Login-Sperre, den
+Backup-Export (gültige, konsistente SQLite-Kopie inkl. aller Tabellen, Belegdateien im
+ZIP enthalten), die Jahres-/Kategorie-Auswertung (Summenbildung, Ausschluss
+abgelehnter Rechnungen, Gruppierung nach Kategorie/Monat, Kategorie-Filter), die
+Gruppierung/Überfälligkeitserkennung wiederkehrender Zahlungen und das
+IMAP-Fehler-Alarm-Tracking (Zähler, einmaliger Alarm ab Schwellwert, Reset bei
+Erfolg) – ohne Abhängigkeit von Tesseract/Poppler oder einem echten Postfach, läuft
+daher überall.
 
 ## Manuelle Verifikation (bereits durchgeführt)
 
@@ -299,4 +328,17 @@ getestet: alle drei Rechnungen korrekt angelegt und auf dem Board sichtbar,
 Zusammenfassungs-Banner zeigt korrekte Anzahl; Einzel-Upload (inkl.
 Duplikaterkennung) funktioniert unverändert weiter; Auswertung berechnet Summen nach
 Kategorie und Monat korrekt aus echten, unterschiedlich datierten/kategorisierten
-Testrechnungen.
+Testrechnungen; Kategorie-Filter (inkl. Umlaute) liefert die korrekt gefilterte
+Teilmenge.
+
+Wiederkehrende Zahlungen live getestet: Markierung inkl. Intervall wird korrekt
+gespeichert und in der Detailansicht vorbelegt angezeigt, Auswertungsseite zeigt die
+Gruppe mit korrekter Summe und markiert sie als überfällig, sobald Intervall +
+Kulanzfrist verstrichen sind.
+
+Bei diesem Test wurde außerdem ein echter Bug gefunden und behoben: der manuelle
+Fälligkeits-Check stürzte mit HTTP 500 ab, wenn SMTP zwar konfiguriert, der Host aber
+nicht erreichbar war (`run_reminder_check` fing bislang nur `SmtpNotConfigured` ab,
+nicht aber `smtplib`-/Verbindungsfehler wie `socket.gaierror`) – jetzt wird das wie an
+allen anderen Versandstellen der App abgefangen und sauber mit Rückgabewert `0`
+behandelt; Regressionstest ergänzt.

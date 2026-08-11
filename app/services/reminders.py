@@ -2,6 +2,8 @@
 Bedarf eine Sammel-E-Mail (ein Digest statt einer Mail pro Rechnung).
 """
 
+import logging
+import smtplib
 from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm import Session
@@ -10,8 +12,11 @@ from app.database import SessionLocal
 from app.models import Invoice
 from app.services.settings_service import get_settings
 from app.services.smtp_client import SmtpNotConfigured, send_email
+from app.services.stats import RecurringGroup, recurring_overview
 
 REMINDER_ELIGIBLE_STATUSES = ("approved", "forwarded")
+
+logger = logging.getLogger(__name__)
 
 
 def due_invoices_for_reminder(db: Session, days_before: int, today: date | None = None) -> list[Invoice]:
@@ -34,42 +39,77 @@ def due_invoices_for_reminder(db: Session, days_before: int, today: date | None 
     )
 
 
-def _format_digest(invoices: list[Invoice], today: date) -> str:
-    lines = [f"Fälligkeits-Erinnerung ({today.isoformat()}):", ""]
-    for inv in invoices:
-        overdue = " (ÜBERFÄLLIG)" if inv.due_date and inv.due_date < today else ""
-        lines.append(
-            f"- #{inv.id} {inv.sender_name or 'Unbekannt'} – "
-            f"{inv.amount_gross or '-'} {inv.currency} – fällig am {inv.due_date}{overdue}"
-        )
-    lines.append("")
+def overdue_recurring_groups(db: Session, today: date | None = None) -> list[RecurringGroup]:
+    """Wiederkehrende Zahlungsserien (z.B. Miete, Abo), deren nächster erwarteter Beleg
+
+    überfällig ist (Intervall der letzten Rechnung + Kulanzfrist verstrichen, aber keine
+    neue Rechnung eingetroffen).
+    """
+    invoices = db.query(Invoice).filter(Invoice.invoice_date.isnot(None)).all()
+    return [g for g in recurring_overview(invoices, today=today) if g.is_overdue]
+
+
+def _format_digest(invoices: list[Invoice], overdue_recurring: list[RecurringGroup], today: date) -> str:
+    lines = [f"Erinnerung ({today.isoformat()}):", ""]
+
+    if invoices:
+        lines.append("Fällige/überfällige Rechnungen:")
+        for inv in invoices:
+            overdue = " (ÜBERFÄLLIG)" if inv.due_date and inv.due_date < today else ""
+            lines.append(
+                f"- #{inv.id} {inv.sender_name or 'Unbekannt'} – "
+                f"{inv.amount_gross or '-'} {inv.currency} – fällig am {inv.due_date}{overdue}"
+            )
+        lines.append("")
+
+    if overdue_recurring:
+        lines.append("Erwarteter wiederkehrender Beleg fehlt noch:")
+        for group in overdue_recurring:
+            lines.append(
+                f"- {group.label}: letzte Rechnung am {group.last_date}, "
+                f"erwartet ab {group.expected_next} (Intervall {group.interval_days} Tage)"
+            )
+        lines.append("")
+
     lines.append("Zum Bearbeiten: Rechnungsübersicht in Rechnungsworkflow öffnen.")
     return "\n".join(lines)
 
 
 def run_reminder_check(db: Session) -> int:
-    """Führt den Fälligkeits-Check aus, versendet ggf. eine Sammel-Mail.
+    """Führt den Fälligkeits- und Wiederkehrend-Check aus, versendet ggf. eine Sammel-Mail.
 
-    Gibt die Anzahl der Rechnungen zurück, für die eine Erinnerung verschickt wurde
-    (0, wenn nichts fällig ist oder Erinnerungen nicht konfiguriert sind).
+    Gibt die Anzahl der fälligen Rechnungen zurück, für die eine Erinnerung verschickt
+    wurde (0, wenn nichts fällig/überfällig ist oder Erinnerungen nicht konfiguriert
+    sind) - überfällige wiederkehrende Serien fließen zusätzlich in dieselbe Mail ein,
+    zählen aber nicht in den Rückgabewert hinein.
     """
     settings = get_settings(db)
     if not settings.reminder_email or not settings.smtp_configured:
         return 0
 
     invoices = due_invoices_for_reminder(db, settings.reminder_days_before)
-    if not invoices:
+    overdue_recurring = overdue_recurring_groups(db)
+    if not invoices and not overdue_recurring:
         return 0
 
-    body = _format_digest(invoices, date.today())
+    body = _format_digest(invoices, overdue_recurring, date.today())
+    subject_parts = []
+    if invoices:
+        subject_parts.append(f"{len(invoices)} Rechnung(en)")
+    if overdue_recurring:
+        subject_parts.append(f"{len(overdue_recurring)} wiederkehrende Zahlung(en)")
+
     try:
         send_email(
             db,
             to=settings.reminder_email,
-            subject=f"Fälligkeits-Erinnerung: {len(invoices)} Rechnung(en)",
+            subject=f"Erinnerung: {', '.join(subject_parts)}",
             body=body,
         )
     except SmtpNotConfigured:
+        return 0
+    except (smtplib.SMTPException, OSError):
+        logger.warning("Versand der Fälligkeits-Erinnerung fehlgeschlagen", exc_info=True)
         return 0
 
     now = datetime.utcnow()

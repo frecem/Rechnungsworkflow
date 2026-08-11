@@ -12,11 +12,18 @@
       <option value="{{ selected_year }}" selected>{{ selected_year }}</option>
     {% endif %}
   </select>
+  <select name="category" onchange="this.form.submit()">
+    <option value="" {% if not selected_category %}selected{% endif %}>Alle Kategorien</option>
+    {% for c in categories %}
+      <option value="{{ c }}" {% if c == selected_category %}selected{% endif %}>{{ c }}</option>
+    {% endfor %}
+    <option value="{{ no_category_label }}" {% if selected_category == no_category_label %}selected{% endif %}>{{ no_category_label }}</option>
+  </select>
   <noscript><button type="submit">Anzeigen</button></noscript>
 </form>
 
 {% if stats.invoice_count == 0 %}
-<p>Keine Rechnungen mit Rechnungsdatum in {{ selected_year }} (abgelehnte ausgenommen).</p>
+<p>Keine Rechnungen mit Rechnungsdatum in {{ selected_year }}{% if selected_category %} und Kategorie "{{ selected_category }}"{% endif %} (abgelehnte ausgenommen).</p>
 {% else %}
 
 <div class="stats-summary">
@@ -38,6 +45,7 @@
   </div>
 </div>
 
+{% if not selected_category %}
 <h2>Nach Kategorie</h2>
 <div class="table-scroll">
 <table class="invoice-table">
@@ -47,7 +55,7 @@
   <tbody>
     {% for row in stats.by_category %}
     <tr>
-      <td>{{ row.label }}</td>
+      <td><a href="/stats?year={{ selected_year }}&category={{ row.label }}">{{ row.label }}</a></td>
       <td>{{ row.count }}</td>
       <td>{{ "%.2f"|format(row.total) }} €</td>
     </tr>
@@ -55,8 +63,9 @@
   </tbody>
 </table>
 </div>
+{% endif %}
 
-<h2>Nach Monat</h2>
+<h2>Nach Monat{% if selected_category %} ({{ selected_category }}){% endif %}</h2>
 <div class="table-scroll">
 <table class="invoice-table">
   <thead>
@@ -74,6 +83,36 @@
 </table>
 </div>
 
-<p><a href="/export/csv?date_from={{ selected_year }}-01-01&date_to={{ selected_year }}-12-31">CSV-Export für {{ selected_year }}</a></p>
+<p><a href="/export/csv?date_from={{ selected_year }}-01-01&date_to={{ selected_year }}-12-31{% if selected_category and selected_category != no_category_label %}&category={{ selected_category }}{% endif %}">CSV-Export für {{ selected_year }}{% if selected_category %} ({{ selected_category }}){% endif %}</a></p>
+{% endif %}
+
+{% if recurring %}
+<h2>Wiederkehrende Zahlungen</h2>
+<p>Gruppiert nach Absender, unabhängig vom ausgewählten Jahr.</p>
+<div class="table-scroll">
+<table class="invoice-table">
+  <thead>
+    <tr><th>Absender</th><th>Anzahl</th><th>Summe (Brutto)</th><th>Letzte Rechnung</th><th>Nächste erwartet</th></tr>
+  </thead>
+  <tbody>
+    {% for group in recurring %}
+    <tr>
+      <td>{{ group.label }}</td>
+      <td>{{ group.count }}</td>
+      <td>{{ "%.2f"|format(group.total) }} €</td>
+      <td>{{ group.last_date }}</td>
+      <td>
+        {% if group.expected_next %}
+          {{ group.expected_next }}
+          {% if group.is_overdue %}<span class="warning">(überfällig)</span>{% endif %}
+        {% else %}
+          – Intervall nicht gesetzt –
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
 {% endif %}
 {% endblock %}

@@ -7,9 +7,12 @@ final freigegeben sind - fuer einen vollstaendigen Ueberblick. Gruppiert nach
 
 from collections import defaultdict
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 from decimal import Decimal
 
 from app.models import Invoice
+
+RECURRING_ALERT_GRACE_DAYS = 7
 
 NO_CATEGORY_LABEL = "– keine Kategorie –"
 MONTH_NAMES = [
@@ -41,8 +44,10 @@ def available_years(invoices: list[Invoice]) -> list[int]:
     return sorted(years, reverse=True)
 
 
-def compute_yearly_stats(invoices: list[Invoice], year: int) -> YearlyStats:
+def compute_yearly_stats(invoices: list[Invoice], year: int, category: str | None = None) -> YearlyStats:
     relevant = [inv for inv in invoices if inv.status != "rejected" and inv.invoice_date and inv.invoice_date.year == year]
+    if category:
+        relevant = [inv for inv in relevant if (inv.category or NO_CATEGORY_LABEL) == category]
 
     total_gross = sum((inv.amount_gross or Decimal("0") for inv in relevant), Decimal("0"))
     total_net = sum((inv.amount_net or Decimal("0") for inv in relevant), Decimal("0"))
@@ -83,3 +88,55 @@ def compute_yearly_stats(invoices: list[Invoice], year: int) -> YearlyStats:
         by_category=by_category,
         by_month=by_month,
     )
+
+
+@dataclass
+class RecurringGroup:
+    label: str
+    count: int
+    total: Decimal
+    interval_days: int | None
+    last_date: date
+    expected_next: date | None
+    is_overdue: bool = False
+
+
+def recurring_overview(invoices: list[Invoice], today: date | None = None) -> list[RecurringGroup]:
+    """Gruppiert als wiederkehrend markierte Rechnungen nach Absender.
+
+    `expected_next` wird aus dem Intervall der zuletzt eingegangenen Rechnung der
+    Gruppe berechnet; `is_overdue` ist gesetzt, wenn dieser Termin (plus
+    Kulanzfrist) bereits verstrichen ist, ohne dass eine neue Rechnung eingetroffen ist.
+    """
+    today = today or date.today()
+    recurring = [inv for inv in invoices if inv.is_recurring and inv.invoice_date]
+
+    groups: dict[str, list[Invoice]] = defaultdict(list)
+    for inv in recurring:
+        groups[inv.sender_name or "Unbekannt"].append(inv)
+
+    result = []
+    for label, invs in groups.items():
+        invs_sorted = sorted(invs, key=lambda i: i.invoice_date)
+        latest = invs_sorted[-1]
+        total = sum((i.amount_gross or Decimal("0") for i in invs), Decimal("0"))
+
+        expected_next = None
+        is_overdue = False
+        if latest.recurrence_interval_days:
+            expected_next = latest.invoice_date + timedelta(days=latest.recurrence_interval_days)
+            is_overdue = today > expected_next + timedelta(days=RECURRING_ALERT_GRACE_DAYS)
+
+        result.append(
+            RecurringGroup(
+                label=label,
+                count=len(invs),
+                total=total,
+                interval_days=latest.recurrence_interval_days,
+                last_date=latest.invoice_date,
+                expected_next=expected_next,
+                is_overdue=is_overdue,
+            )
+        )
+
+    return sorted(result, key=lambda g: g.label)

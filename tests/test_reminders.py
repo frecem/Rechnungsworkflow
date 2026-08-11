@@ -152,3 +152,61 @@ def test_run_reminder_check_send_failure_does_not_mark_reminded(db):
     assert count == 0
     db.refresh(inv)
     assert inv.due_reminder_sent_at is None
+
+
+def test_run_reminder_check_connection_error_does_not_raise(db):
+    """Regression: ein unerreichbarer SMTP-Host darf den Aufrufer nicht mit einer
+
+    unbehandelten Exception abstuerzen lassen (fruehere Version fing nur
+    SmtpNotConfigured ab, nicht smtplib/OSError-Fehler wie socket.gaierror).
+    """
+    _settings(db)
+    inv = make_invoice(db, hash_suffix="n", due_date=date.today())
+
+    with patch("app.services.reminders.send_email", side_effect=OSError("Name or service not known")):
+        count = run_reminder_check(db)
+
+    assert count == 0
+    db.refresh(inv)
+    assert inv.due_reminder_sent_at is None
+
+
+def test_run_reminder_check_includes_overdue_recurring_even_without_due_invoices(db):
+    _settings(db)
+    make_invoice(
+        db,
+        hash_suffix="l",
+        sender_name="Vermieter GmbH",
+        invoice_date=date.today() - timedelta(days=60),
+        is_recurring=True,
+        recurrence_interval_days=30,
+    )
+
+    with patch("app.services.reminders.send_email") as mock_send:
+        count = run_reminder_check(db)
+
+    # keine faelligen Rechnungen (kein due_date gesetzt) -> Rueckgabewert bleibt 0,
+    # trotzdem wird eine Mail wegen der ueberfaelligen wiederkehrenden Zahlung verschickt
+    assert count == 0
+    mock_send.assert_called_once()
+    body = mock_send.call_args.kwargs["body"]
+    assert "Vermieter GmbH" in body
+    assert "wiederkehrend" in body.lower() or "erwarteter" in body.lower()
+
+
+def test_run_reminder_check_no_alert_for_recurring_within_grace_period(db):
+    _settings(db)
+    make_invoice(
+        db,
+        hash_suffix="m",
+        sender_name="Netflix",
+        invoice_date=date.today() - timedelta(days=10),
+        is_recurring=True,
+        recurrence_interval_days=30,
+    )
+
+    with patch("app.services.reminders.send_email") as mock_send:
+        count = run_reminder_check(db)
+
+    assert count == 0
+    mock_send.assert_not_called()

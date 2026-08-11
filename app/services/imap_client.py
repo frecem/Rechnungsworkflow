@@ -9,6 +9,7 @@ Ingest-Pipeline wie der manuelle Upload ein.
 import email
 import imaplib
 import logging
+from datetime import datetime
 from email.header import decode_header
 from email.utils import parseaddr
 
@@ -18,10 +19,13 @@ from app.database import SessionLocal
 from app.models import SyncState
 from app.services.ingest import ingest_document
 from app.services.settings_service import get_settings
+from app.services.smtp_client import send_email
 
 logger = logging.getLogger(__name__)
 
 ALLOWED_CONTENT_TYPES = {"application/pdf", "image/jpeg", "image/png"}
+
+IMAP_FAILURE_ALERT_THRESHOLD = 3
 
 
 class ImapNotConfigured(Exception):
@@ -125,19 +129,64 @@ def sync_new_invoices(db: Session) -> dict:
     return {"new_invoices": new_invoices, "duplicates": duplicates}
 
 
+def _reset_failure_tracking(db: Session) -> None:
+    settings = get_settings(db)
+    if settings.imap_consecutive_failures or settings.imap_failure_notified_at:
+        settings.imap_consecutive_failures = 0
+        settings.imap_failure_notified_at = None
+        db.commit()
+
+
+def _register_failure_and_maybe_alert(db: Session) -> None:
+    """Zaehlt aufeinanderfolgende Fehlschlaege und verschickt ab einem Schwellwert
+
+    genau einmal eine Warn-Mail an die Erinnerungs-Adresse (kein Spam bei jedem
+    weiteren stuendlichen Versuch, solange der Fehler anhaelt).
+    """
+    settings = get_settings(db)
+    settings.imap_consecutive_failures += 1
+    db.commit()
+
+    if (
+        settings.imap_consecutive_failures >= IMAP_FAILURE_ALERT_THRESHOLD
+        and settings.imap_failure_notified_at is None
+        and settings.reminder_email
+        and settings.smtp_configured
+    ):
+        try:
+            send_email(
+                db,
+                to=settings.reminder_email,
+                subject="Rechnungsworkflow: automatischer E-Mail-Abruf schlägt fehl",
+                body=(
+                    f"Der automatische IMAP-Sync ist seit {settings.imap_consecutive_failures} "
+                    "Versuchen in Folge fehlgeschlagen. Bitte die IMAP-Zugangsdaten in den "
+                    "Einstellungen prüfen (z.B. abgelaufenes App-Passwort)."
+                ),
+            )
+            settings.imap_failure_notified_at = datetime.utcnow()
+            db.commit()
+        except Exception:
+            logger.warning("IMAP-Fehler-Benachrichtigung konnte nicht versendet werden", exc_info=True)
+
+
 def sync_new_invoices_standalone() -> dict:
     """Einstiegspunkt für den stündlichen Scheduler-Job: eigene DB-Session, still
 
     übersprungen wenn IMAP nicht konfiguriert ist, Verbindungsfehler werden geloggt
-    statt den Scheduler abstürzen zu lassen.
+    statt den Scheduler abstürzen zu lassen. Nach mehreren Fehlschlägen in Folge wird
+    einmalig eine Warn-Mail verschickt.
     """
     db = SessionLocal()
     try:
-        return sync_new_invoices(db)
+        result = sync_new_invoices(db)
+        _reset_failure_tracking(db)
+        return result
     except ImapNotConfigured:
         return {"new_invoices": 0, "duplicates": 0}
     except (imaplib.IMAP4.error, OSError):
         logger.warning("Automatischer IMAP-Sync fehlgeschlagen", exc_info=True)
+        _register_failure_and_maybe_alert(db)
         return {"new_invoices": 0, "duplicates": 0, "error": "Verbindung fehlgeschlagen"}
     finally:
         db.close()

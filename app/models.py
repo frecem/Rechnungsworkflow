@@ -56,6 +56,10 @@ class Invoice(Base):
     paid_at: Mapped[datetime | None] = mapped_column(DateTime)
     due_reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime)
 
+    # Wiederkehrende Zahlungen (z.B. Miete, Abos) - Gruppierung ueber sender_name
+    is_recurring: Mapped[bool] = mapped_column(default=False)
+    recurrence_interval_days: Mapped[int | None]
+
     # Kanban-Board-Zuordnung
     board_column_id: Mapped[int | None] = mapped_column(ForeignKey("board_columns.id"))
     board_position: Mapped[int] = mapped_column(default=0)
@@ -124,6 +128,9 @@ class AppSettings(Base):
 
     reminder_email: Mapped[str | None]
     reminder_days_before: Mapped[int] = mapped_column(default=3)
+
+    imap_consecutive_failures: Mapped[int] = mapped_column(default=0)
+    imap_failure_notified_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     categories: Mapped[str] = mapped_column(default="Büro,Software,Reise,Sonstiges")
 

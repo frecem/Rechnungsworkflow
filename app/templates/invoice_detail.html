@@ -53,6 +53,13 @@
       <label>Notizen
         <textarea name="notes">{{ invoice.notes or '' }}</textarea>
       </label>
+      <label class="radio-label">
+        <input type="checkbox" name="is_recurring" {% if invoice.is_recurring %}checked{% endif %}>
+        Wiederkehrend (z.B. Miete, Abo)
+      </label>
+      <label>Intervall in Tagen <span class="hint">(z.B. 30 = monatlich, 365 = jährlich)</span>
+        <input type="number" name="recurrence_interval_days" min="1" value="{{ invoice.recurrence_interval_days or '' }}">
+      </label>
       <button type="submit">Speichern</button>
     </form>
 

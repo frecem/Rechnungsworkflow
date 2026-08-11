@@ -1,8 +1,8 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from app.models import Invoice
-from app.services.stats import NO_CATEGORY_LABEL, available_years, compute_yearly_stats
+from app.services.stats import NO_CATEGORY_LABEL, available_years, compute_yearly_stats, recurring_overview
 
 
 def _invoice(**overrides):
@@ -84,3 +84,66 @@ def test_compute_yearly_stats_empty_year():
     assert stats.total_gross == Decimal("0")
     assert stats.by_category == []
     assert stats.by_month == []
+
+
+def test_compute_yearly_stats_category_filter():
+    invoices = [
+        _invoice(hash="a", category="Büro", amount_gross=Decimal("30.00")),
+        _invoice(hash="b", category="Software", amount_gross=Decimal("80.00")),
+    ]
+    stats = compute_yearly_stats(invoices, 2026, category="Software")
+    assert stats.invoice_count == 1
+    assert stats.total_gross == Decimal("80.00")
+
+
+def test_compute_yearly_stats_category_filter_no_category_bucket():
+    invoices = [
+        _invoice(hash="a", category=None, amount_gross=Decimal("30.00")),
+        _invoice(hash="b", category="Software", amount_gross=Decimal("80.00")),
+    ]
+    stats = compute_yearly_stats(invoices, 2026, category=NO_CATEGORY_LABEL)
+    assert stats.invoice_count == 1
+    assert stats.total_gross == Decimal("30.00")
+
+
+def test_recurring_overview_groups_by_sender():
+    invoices = [
+        _invoice(hash="a", sender_name="Vermieter GmbH", is_recurring=True, recurrence_interval_days=30,
+                 invoice_date=date(2026, 1, 1), amount_gross=Decimal("800.00")),
+        _invoice(hash="b", sender_name="Vermieter GmbH", is_recurring=True, recurrence_interval_days=30,
+                 invoice_date=date(2026, 2, 1), amount_gross=Decimal("800.00")),
+        _invoice(hash="c", sender_name="Netflix", is_recurring=True, recurrence_interval_days=30,
+                 invoice_date=date(2026, 1, 15), amount_gross=Decimal("15.00")),
+        _invoice(hash="d", sender_name="Einmalig GmbH", is_recurring=False, amount_gross=Decimal("50.00")),
+    ]
+    groups = recurring_overview(invoices, today=date(2026, 2, 5))
+    labels = {g.label: g for g in groups}
+    assert "Einmalig GmbH" not in labels
+    assert labels["Vermieter GmbH"].count == 2
+    assert labels["Vermieter GmbH"].total == Decimal("1600.00")
+    assert labels["Vermieter GmbH"].last_date == date(2026, 2, 1)
+    assert labels["Netflix"].count == 1
+
+
+def test_recurring_overview_marks_overdue_when_expected_date_passed():
+    invoices = [
+        _invoice(hash="a", sender_name="Netflix", is_recurring=True, recurrence_interval_days=30,
+                 invoice_date=date(2026, 1, 1), amount_gross=Decimal("15.00")),
+    ]
+    # 30 Tage Intervall + 7 Tage Kulanz = ueberfaellig ab 2026-02-08
+    not_yet = recurring_overview(invoices, today=date(2026, 2, 7))
+    assert not_yet[0].is_overdue is False
+
+    overdue = recurring_overview(invoices, today=date(2026, 2, 9))
+    assert overdue[0].is_overdue is True
+    assert overdue[0].expected_next == date(2026, 1, 31)
+
+
+def test_recurring_overview_without_interval_has_no_expected_next():
+    invoices = [
+        _invoice(hash="a", sender_name="Netflix", is_recurring=True, recurrence_interval_days=None,
+                 invoice_date=date(2026, 1, 1)),
+    ]
+    groups = recurring_overview(invoices, today=date(2026, 6, 1))
+    assert groups[0].expected_next is None
+    assert groups[0].is_overdue is False

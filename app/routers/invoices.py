@@ -110,6 +110,8 @@ def save_invoice(
     currency: str = Form("EUR"),
     category: str = Form(""),
     notes: str = Form(""),
+    is_recurring: bool = Form(False),
+    recurrence_interval_days: str = Form(""),
     db: Session = Depends(get_db),
 ):
     invoice = _get_invoice_or_404(db, invoice_id)
@@ -125,6 +127,8 @@ def save_invoice(
     invoice.currency = currency or "EUR"
     invoice.category = category or None
     invoice.notes = notes or None
+    invoice.is_recurring = is_recurring
+    invoice.recurrence_interval_days = int(recurrence_interval_days) if recurrence_interval_days.strip().isdigit() else None
     db.commit()
 
     if invoice.status in ("extracted", "rejected"):
