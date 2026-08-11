@@ -6,6 +6,13 @@
   <a href="/board/columns">Spalten verwalten</a>
 </div>
 
+<form method="post" action="/upload" enctype="multipart/form-data" id="board-upload-form">
+  <label for="board-upload-input" class="upload-dropzone" id="board-upload-dropzone">
+    <span class="upload-dropzone-text">Beleg hierher ziehen oder klicken zum Hochladen (PDF, Foto/Scan)</span>
+    <input type="file" name="file" id="board-upload-input" accept="application/pdf,image/*" required>
+  </label>
+</form>
+
 <div class="board">
   {% for column in columns %}
   <div class="board-column" data-column-id="{{ column.id }}">

@@ -180,6 +180,39 @@ body {
   align-items: center;
 }
 
+.upload-dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 1rem 0;
+  padding: 1.25rem;
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: center;
+  color: var(--muted);
+  transition: border-color 0.15s, background-color 0.15s, color 0.15s;
+}
+
+.upload-dropzone:hover {
+  border-color: #2e7d32;
+  color: inherit;
+}
+
+.upload-dropzone.dragover {
+  border-color: #2e7d32;
+  background: rgba(46, 125, 50, 0.08);
+  color: inherit;
+}
+
+.upload-dropzone input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+
 .board {
   display: flex;
   gap: 1rem;

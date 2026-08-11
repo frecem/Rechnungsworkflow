@@ -1,3 +1,39 @@
+const uploadDropzone = document.getElementById("board-upload-dropzone");
+const uploadInput = document.getElementById("board-upload-input");
+const uploadForm = document.getElementById("board-upload-form");
+
+if (uploadDropzone && uploadInput && uploadForm) {
+  ["dragenter", "dragover"].forEach((eventName) => {
+    uploadDropzone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      uploadDropzone.classList.add("dragover");
+    });
+  });
+
+  ["dragleave", "drop"].forEach((eventName) => {
+    uploadDropzone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      uploadDropzone.classList.remove("dragover");
+    });
+  });
+
+  uploadDropzone.addEventListener("drop", (e) => {
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      uploadInput.files = files;
+      uploadForm.submit();
+    }
+  });
+
+  uploadInput.addEventListener("change", () => {
+    if (uploadInput.files.length > 0) {
+      uploadForm.submit();
+    }
+  });
+}
+
 document.addEventListener("dragstart", (e) => {
   const card = e.target.closest(".board-card");
   if (!card) return;

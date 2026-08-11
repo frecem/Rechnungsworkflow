@@ -101,10 +101,11 @@ Fehlers.
 
 ## Bedienung
 
-- **Board** (`/board`, Startseite): Kanban-Ansicht aller Rechnungen. Spalten frei
-  anlegen/umbenennen/löschen/sortieren unter "Spalten verwalten". Karten per
-  Drag&Drop zwischen Spalten verschieben. Neue Rechnungen landen automatisch in der
-  ersten Spalte.
+- **Board** (`/board`, Startseite): Kanban-Ansicht aller Rechnungen. Direkt oben eine
+  Drag&Drop-Upload-Zone (PDF/Foto/Scan per Ziehen oder Klick), ohne extra auf
+  `/upload` navigieren zu müssen. Spalten frei anlegen/umbenennen/löschen/sortieren
+  unter "Spalten verwalten". Karten per Drag&Drop zwischen Spalten verschieben. Neue
+  Rechnungen landen automatisch in der ersten Spalte.
 - **Hochladen** (`/upload`): PDF oder Foto/Scan (JPG/PNG) einer Rechnung hochladen.
   Die App liest zuerst den PDF-Textlayer, falls vorhanden; sonst OCR über Tesseract.
   Ergebnis landet im Status `extracted`, alle erkannten Felder sind sofort editierbar.
