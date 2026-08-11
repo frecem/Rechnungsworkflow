@@ -1,3 +1,6 @@
+from contextlib import asynccontextmanager
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -6,11 +9,30 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import settings as bootstrap_settings
 from app.database import SessionLocal
 from app.routers import auth, board, email_sync, export, invoices, settings, upload
+from app.services.reminders import run_reminder_check_standalone
 from app.services.settings_service import get_settings
 
 PUBLIC_PATHS = {"/login", "/setup"}
 
-app = FastAPI(title="Rechnungsworkflow")
+scheduler = AsyncIOScheduler()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scheduler.add_job(
+        run_reminder_check_standalone,
+        trigger="cron",
+        hour=7,
+        minute=0,
+        id="due_date_reminder",
+        replace_existing=True,
+    )
+    scheduler.start()
+    yield
+    scheduler.shutdown(wait=False)
+
+
+app = FastAPI(title="Rechnungsworkflow", lifespan=lifespan)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

@@ -52,6 +52,10 @@ class Invoice(Base):
     payment_reference: Mapped[str | None]
     girocode_sent_at: Mapped[datetime | None] = mapped_column(DateTime)
 
+    # Bezahlt-Markierung (orthogonal zum Status-Workflow) und Fälligkeits-Erinnerung
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime)
+    due_reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime)
+
     # Kanban-Board-Zuordnung
     board_column_id: Mapped[int | None] = mapped_column(ForeignKey("board_columns.id"))
     board_position: Mapped[int] = mapped_column(default=0)
@@ -117,6 +121,9 @@ class AppSettings(Base):
     paperless_email: Mapped[str | None]
     girocode_email: Mapped[str | None]
     default_forward_target: Mapped[str] = mapped_column(default="steuer")
+
+    reminder_email: Mapped[str | None]
+    reminder_days_before: Mapped[int] = mapped_column(default=3)
 
     categories: Mapped[str] = mapped_column(default="Büro,Software,Reise,Sonstiges")
 

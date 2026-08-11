@@ -17,9 +17,9 @@ def send_email(
     to: str,
     subject: str,
     body: str,
-    attachment_content: bytes,
-    attachment_filename: str,
-    attachment_mime_type: str | None,
+    attachment_content: bytes | None = None,
+    attachment_filename: str | None = None,
+    attachment_mime_type: str | None = None,
 ) -> None:
     settings = get_settings(db)
     if not settings.smtp_configured:
@@ -31,13 +31,14 @@ def send_email(
     msg["To"] = to
     msg.set_content(body)
 
-    maintype, _, subtype = (attachment_mime_type or "application/octet-stream").partition("/")
-    msg.add_attachment(
-        attachment_content,
-        maintype=maintype or "application",
-        subtype=subtype or "octet-stream",
-        filename=attachment_filename,
-    )
+    if attachment_content is not None:
+        maintype, _, subtype = (attachment_mime_type or "application/octet-stream").partition("/")
+        msg.add_attachment(
+            attachment_content,
+            maintype=maintype or "application",
+            subtype=subtype or "octet-stream",
+            filename=attachment_filename or "anhang",
+        )
 
     with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
         server.starttls()

@@ -64,6 +64,16 @@
   </fieldset>
 
   <fieldset>
+    <legend>Fälligkeits-Erinnerung</legend>
+    <label>Erinnerungs-E-Mail
+      <input type="email" name="reminder_email" value="{{ settings.reminder_email or '' }}">
+    </label>
+    <label>Tage vor Fälligkeit
+      <input type="number" name="reminder_days_before" min="0" value="{{ settings.reminder_days_before }}">
+    </label>
+  </fieldset>
+
+  <fieldset>
     <legend>Kategorien</legend>
     <label>Komma-getrennte Liste
       <input type="text" name="categories" value="{{ settings.categories }}">
@@ -71,6 +81,13 @@
   </fieldset>
 
   <button type="submit">Speichern</button>
+</form>
+
+{% if reminder_check_result %}
+  <p class="info">{{ reminder_check_result }} Erinnerung(en) versendet.</p>
+{% endif %}
+<form method="post" action="/settings/check-reminders" style="display:inline">
+  <button type="submit">Fälligkeits-Erinnerungen jetzt prüfen</button>
 </form>
 
 <h2>Passwort ändern</h2>

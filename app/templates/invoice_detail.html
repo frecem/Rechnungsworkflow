@@ -89,12 +89,40 @@
       </div>
     {% endif %}
 
+    {% if invoice.status in ("approved", "forwarded") %}
+      {% if invoice.paid_at %}
+        <p class="info">Bezahlt am {{ invoice.paid_at }}.</p>
+      {% else %}
+        <form method="post" action="/invoices/{{ invoice.id }}/mark-paid" style="display:inline">
+          <button type="submit" class="btn-approve">Als bezahlt markieren</button>
+        </form>
+      {% endif %}
+    {% endif %}
+
     <details class="meta">
       <summary>Details</summary>
       <p>Quelle: {{ invoice.source_type }}{% if invoice.email_from %} ({{ invoice.email_from }}){% endif %}</p>
       <p>Datei: {{ invoice.file_original_name }}</p>
       <p>Angelegt: {{ invoice.created_at }}</p>
     </details>
+
+    {% if history %}
+    <details class="meta">
+      <summary>Status-Historie</summary>
+      <ul class="status-history">
+        {% for entry in history %}
+          <li>
+            {{ entry.changed_at }}:
+            {% if entry.old_status %}
+              <span class="status status-{{ entry.old_status }}">{{ entry.old_status }}</span> &rarr;
+            {% endif %}
+            <span class="status status-{{ entry.new_status }}">{{ entry.new_status }}</span>
+            {% if entry.note %}<span class="hint">({{ entry.note }})</span>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

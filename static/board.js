@@ -94,3 +94,20 @@ document.querySelectorAll(".board-column-body").forEach((columnBody) => {
     });
   });
 });
+
+// Touch-/tastaturtaugliche Alternative zum Drag&Drop: funktioniert auf Maus, Touch
+// und Tastatur gleichermaßen, da native HTML5-Drag&Drop auf Touchscreens nicht
+// ausloest.
+document.querySelectorAll(".board-card-move").forEach((select) => {
+  select.addEventListener("click", (e) => e.stopPropagation());
+  select.addEventListener("change", () => {
+    const invoiceId = parseInt(select.dataset.invoiceId, 10);
+    const columnId = parseInt(select.value, 10);
+
+    fetch("/board/move", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invoice_id: invoiceId, column_id: columnId, position: 0 }),
+    }).then(() => window.location.reload());
+  });
+});

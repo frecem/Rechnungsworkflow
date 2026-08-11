@@ -8,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import FORWARD_TARGETS, STATUSES, Invoice
+from app.models import FORWARD_TARGETS, STATUSES, Invoice, InvoiceStatusHistory
 from app.services import extraction, girocode, storage
 from app.services.settings_service import get_settings
 from app.services.smtp_client import SmtpNotConfigured, send_girocode, send_invoice_copy
@@ -71,12 +71,19 @@ def list_invoices(request: Request, status: str | None = None, q: str | None = N
 def invoice_detail(request: Request, invoice_id: int, db: Session = Depends(get_db)):
     invoice = _get_invoice_or_404(db, invoice_id)
     settings = get_settings(db)
+    history = (
+        db.query(InvoiceStatusHistory)
+        .filter(InvoiceStatusHistory.invoice_id == invoice_id)
+        .order_by(InvoiceStatusHistory.changed_at.asc())
+        .all()
+    )
     return templates.TemplateResponse(
         request,
         "invoice_detail.html",
         {
             "invoice": invoice,
             "categories": settings.category_list,
+            "history": history,
         },
     )
 
@@ -143,6 +150,17 @@ def reject_invoice(invoice_id: int, note: str = Form(""), db: Session = Depends(
         change_status(db, invoice, "rejected", note=note or None)
     except InvalidStatusTransition as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return RedirectResponse(f"/invoices/{invoice_id}", status_code=303)
+
+
+@router.post("/invoices/{invoice_id}/mark-paid")
+def mark_invoice_paid(invoice_id: int, db: Session = Depends(get_db)):
+    invoice = _get_invoice_or_404(db, invoice_id)
+    if invoice.status not in ("approved", "forwarded"):
+        raise HTTPException(status_code=400, detail="Rechnung muss zuerst freigegeben sein")
+    if invoice.paid_at is None:
+        invoice.paid_at = datetime.utcnow()
+        db.commit()
     return RedirectResponse(f"/invoices/{invoice_id}", status_code=303)
 
 

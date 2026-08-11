@@ -4,6 +4,7 @@
 <a href="/board">&larr; zurück zum Board</a>
 <h1>Spalten verwalten</h1>
 
+<div class="table-scroll">
 <table class="invoice-table">
   <thead>
     <tr><th>Name</th><th>Reihenfolge</th><th></th></tr>
@@ -37,6 +38,7 @@
     {% endfor %}
   </tbody>
 </table>
+</div>
 
 <h2>Neue Spalte</h2>
 <form method="post" action="/board/columns" class="inline-form">

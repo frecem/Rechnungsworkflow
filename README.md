@@ -107,6 +107,8 @@ Nach dem Login unter **Einstellungen** (`/settings`) hinterlegen:
 - **Girocode-Empfänger-Adresse**: wohin der erzeugte Zahlungs-QR-Code (PNG) gesendet wird
 - Standard-Weiterleitungsziel (Steuer / Paperless / beides) – vorbelegt bei jeder
   Freigabe, pro Rechnung änderbar
+- **Fälligkeits-Erinnerung**: Erinnerungs-E-Mail-Adresse und Vorlaufzeit (Tage vor
+  Fälligkeit) – ohne hinterlegte Adresse ist die Funktion inaktiv
 - Kategorien-Liste
 
 Die App startet auch ohne vollständig ausgefüllte Einstellungen; die jeweiligen
@@ -118,8 +120,11 @@ Fehlers.
 - **Board** (`/board`, Startseite): Kanban-Ansicht aller Rechnungen. Direkt oben eine
   Drag&Drop-Upload-Zone (PDF/Foto/Scan per Ziehen oder Klick), ohne extra auf
   `/upload` navigieren zu müssen. Spalten frei anlegen/umbenennen/löschen/sortieren
-  unter "Spalten verwalten". Karten per Drag&Drop zwischen Spalten verschieben. Neue
-  Rechnungen landen automatisch in der ersten Spalte.
+  unter "Spalten verwalten". Karten per Drag&Drop zwischen Spalten verschieben – auf
+  Touchscreens (Handy/Tablet, wo Drag&Drop nicht funktioniert) alternativ per
+  Dropdown-Auswahl auf der Karte. Neue Rechnungen landen automatisch in der ersten
+  Spalte. Voll bedienbar auf Handy/Tablet (responsive Layout, keine horizontalen
+  Überläufe).
 - **Hochladen** (`/upload`): PDF oder Foto/Scan (JPG/PNG) einer Rechnung hochladen.
   Die App liest zuerst den PDF-Textlayer, falls vorhanden; sonst OCR über Tesseract.
   Ergebnis landet im Status `extracted`, alle erkannten Felder sind sofort editierbar.
@@ -129,7 +134,9 @@ Fehlers.
   nach Absender/Rechnungsnummer.
 - **Detailansicht**: Dateivorschau links, editierbares Formular rechts. Absender ist
   das am wenigsten zuverlässige Feld und wird entsprechend markiert. Aktionen:
-  Speichern, Freigeben, Ablehnen.
+  Speichern, Freigeben, Ablehnen. Nach Freigabe zusätzlich "Als bezahlt markieren"
+  (stoppt künftige Fälligkeits-Erinnerungen für diese Rechnung). Unten ein
+  aufklappbarer Verlauf aller Statuswechsel mit Zeitstempel.
 - **Girocode-Prüfmaske** (nach Freigabe): Zahlungsdaten (Empfänger, IBAN, BIC, Betrag,
   Verwendungszweck) werden aus dem Belegtext vorbefüllt (IBAN/BIC-Erkennung), müssen
   aber vor dem Absenden geprüft werden – die IBAN-Prüfsumme wird zusätzlich technisch
@@ -149,6 +156,18 @@ Der erzeugte QR-Code folgt dem [EPC-QR-Code-Standard](https://de.wikipedia.org/w
 die Girocodes unterstützt, um die Rechnung direkt zu bezahlen. Kodiert werden Empfänger,
 IBAN, optional BIC, Betrag und Verwendungszweck – also die Zahlungsdaten des
 **Rechnungsstellers**, nicht deine eigenen.
+
+## Fälligkeits-Erinnerung
+
+Läuft automatisch einmal täglich um 07:00 Uhr im laufenden App-Prozess (kein externer
+Cronjob nötig). Prüft alle freigegebenen/weitergeleiteten, noch nicht bezahlten
+Rechnungen mit Fälligkeitsdatum und verschickt bei Bedarf **eine** Sammel-E-Mail
+(Digest, keine Einzel-Mail pro Rechnung) an die in den Einstellungen hinterlegte
+Erinnerungs-Adresse – sowohl für bald fällige als auch bereits überfällige Posten.
+Jede Rechnung wird nur einmal erinnert; "Als bezahlt markieren" oder ein manueller
+Check über den Button auf der Einstellungen-Seite (nützlich zum Testen der
+Konfiguration, ohne auf 7 Uhr zu warten) sind die beiden Wege, den Kreislauf zu
+beenden.
 
 ## Duplikaterkennung
 
@@ -204,15 +223,21 @@ Klartext-äquivalent in der lokalen SQLite-Datenbank (`storage/db.sqlite3`, giti
 Wird die App über den Reverse Proxy auch von außerhalb des eigenen Netzes erreichbar
 gemacht, zusätzlich eine Firewall-/IP-Beschränkung auf dem Proxy in Betracht ziehen.
 
+Der Login sperrt sich nach 5 falschen Passwortversuchen für 15 Minuten (global, nicht
+pro IP – In-Memory, geht bei einem Neustart der App verloren; für dieses private
+Einzelnutzer-Tool ein akzeptabler Kompromiss gegenüber einer dauerhaften Sperre).
+
 ## Tests
 
 ```bash
 pytest tests/
 ```
 
-Deckt ab: Extraktions-Heuristiken (inkl. IBAN/BIC-Erkennung), Datei-Speicherlogik und
-den EPC-Girocode-Payload-Aufbau inkl. IBAN-Prüfsummenvalidierung – ohne Abhängigkeit
-von Tesseract/Poppler oder einem echten Postfach, läuft daher überall.
+Deckt ab: Extraktions-Heuristiken (inkl. IBAN/BIC-Erkennung), Datei-Speicherlogik, den
+EPC-Girocode-Payload-Aufbau inkl. IBAN-Prüfsummenvalidierung, die
+Fälligkeits-Erinnerungslogik (welche Rechnungen qualifizieren, Digest-Versand,
+Markieren als erinnert) und die Login-Sperre – ohne Abhängigkeit von
+Tesseract/Poppler oder einem echten Postfach, läuft daher überall.
 
 ## Manuelle Verifikation (bereits durchgeführt)
 
@@ -225,3 +250,14 @@ korrekt); mit einem unerreichbaren SMTP-Host wurde zusätzlich der Fehlerpfad ge
 (klare Fehlermeldung statt Absturz, Status bleibt unverändert). E-Mail-Sync (IMAP) ist
 implementiert, aber mangels echtem Postfach in dieser Umgebung nicht live getestet –
 bitte nach dem Ausfüllen der Einstellungen einmal mit einer echten Test-Mail prüfen.
+
+Zusätzlich end-to-end verifiziert: manueller Fälligkeits-Check versendet korrekt
+formatierten Digest (gemocktes SMTP) und markiert Rechnungen als erinnert; "Als
+bezahlt markieren" stoppt einen erneuten Check zuverlässig; Status-Historie zeigt alle
+Übergänge korrekt; Login sperrt sich nach 5 Fehlversuchen (HTTP 429) und lässt sich
+nach Reset wieder normal nutzen; APScheduler-Job ist korrekt für 07:00 Uhr täglich
+registriert. Mobile-/Tablet-Tauglichkeit wurde per Playwright bei 375×667 und
+768×1024 Viewport-Größen geprüft (Board, Übersicht, Detailansicht): keine
+horizontalen Layout-Überläufe, Topbar bricht korrekt um, und das Verschieben von
+Karten zwischen Spalten funktioniert nachweislich auch ohne Drag&Drop über das
+Dropdown-Menü auf jeder Karte.

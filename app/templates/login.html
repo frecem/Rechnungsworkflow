@@ -9,7 +9,11 @@
 <body>
   <main class="container auth-container">
     <h1>Rechnungsworkflow</h1>
-    {% if error %}<p class="warning">{{ error }}</p>{% endif %}
+    {% if locked %}
+      <p class="warning">Zu viele Fehlversuche. Bitte in {{ unlock_minutes }} Minute(n) erneut versuchen.</p>
+    {% elif error %}
+      <p class="warning">{{ error }}</p>
+    {% endif %}
     <form method="post" action="/login" class="auth-form">
       <label>Passwort
         <input type="password" name="password" required autofocus>

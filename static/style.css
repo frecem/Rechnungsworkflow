@@ -36,8 +36,14 @@ body {
 
 .filter-bar {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1rem;
+}
+
+.filter-bar input, .filter-bar select {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .invoice-table {
@@ -268,6 +274,19 @@ body {
   color: #b45309;
 }
 
+.board-card-paid {
+  font-size: 0.8rem;
+  color: #198754;
+  font-weight: 600;
+}
+
+.board-card-move {
+  width: 100%;
+  margin-top: 0.4rem;
+  padding: 0.3rem;
+  font-size: 0.85rem;
+}
+
 .board-card-link {
   display: inline-block;
   margin-top: 0.4rem;
@@ -280,6 +299,11 @@ body {
   align-items: center;
 }
 
+.inline-form input[type="text"] {
+  min-width: 0;
+  width: 8rem;
+}
+
 .radio-label {
   display: flex !important;
   align-items: center;
@@ -287,3 +311,57 @@ body {
   font-weight: normal;
 }
 .meta { margin-top: 1.5rem; color: var(--muted); font-size: 0.9rem; }
+
+.status-history {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+}
+
+.status-history li {
+  margin-bottom: 0.4rem;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+/* Tap-Ziele: ausreichend große Buttons für Touch-Bedienung (Handy/Tablet) */
+button, input[type="submit"] {
+  padding: 0.4rem 0.8rem;
+  min-height: 2.25rem;
+}
+
+/* Mobile/Tablet */
+@media (max-width: 700px) {
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .topbar nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .topbar nav a, .topbar nav button {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 1rem 0.75rem;
+  }
+
+  .board-column {
+    min-width: 85vw;
+    max-width: 85vw;
+  }
+
+  .preview iframe, .preview img {
+    min-height: 350px;
+  }
+}

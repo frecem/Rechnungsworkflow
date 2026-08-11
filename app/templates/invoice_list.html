@@ -24,6 +24,7 @@
 </form>
 
 {% if invoices %}
+<div class="table-scroll">
 <table class="invoice-table">
   <thead>
     <tr>
@@ -50,6 +51,7 @@
     {% endfor %}
   </tbody>
 </table>
+</div>
 {% else %}
 <p>Keine Rechnungen gefunden. <a href="/upload">Jetzt eine hochladen</a>.</p>
 {% endif %}

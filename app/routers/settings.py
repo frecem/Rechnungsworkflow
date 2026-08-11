@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import FORWARD_TARGETS
 from app.services.auth import hash_password, verify_password
+from app.services.reminders import run_reminder_check
 from app.services.settings_service import get_settings
 
 router = APIRouter()
@@ -36,6 +37,8 @@ def settings_save(
     paperless_email: str = Form(""),
     girocode_email: str = Form(""),
     default_forward_target: str = Form("steuer"),
+    reminder_email: str = Form(""),
+    reminder_days_before: int = Form(3),
     categories: str = Form(""),
     db: Session = Depends(get_db),
 ):
@@ -60,6 +63,8 @@ def settings_save(
     settings.default_forward_target = (
         default_forward_target if default_forward_target in FORWARD_TARGETS else "steuer"
     )
+    settings.reminder_email = reminder_email or None
+    settings.reminder_days_before = reminder_days_before
     settings.categories = categories or settings.categories
 
     db.commit()
@@ -68,6 +73,17 @@ def settings_save(
         request,
         "settings.html",
         {"settings": settings, "forward_targets": FORWARD_TARGETS, "saved": True},
+    )
+
+
+@router.post("/settings/check-reminders")
+def check_reminders_now(request: Request, db: Session = Depends(get_db)):
+    settings = get_settings(db)
+    count = run_reminder_check(db)
+    return templates.TemplateResponse(
+        request,
+        "settings.html",
+        {"settings": settings, "forward_targets": FORWARD_TARGETS, "reminder_check_result": count},
     )
 
 

@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.services import login_guard
 from app.services.auth import hash_password, verify_password
 from app.services.settings_service import get_settings
 
@@ -57,12 +58,22 @@ def login_form(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/login")
 def login_submit(request: Request, password: str = Form(...), db: Session = Depends(get_db)):
+    if login_guard.is_locked():
+        return templates.TemplateResponse(
+            request,
+            "login.html",
+            {"locked": True, "unlock_minutes": (login_guard.seconds_until_unlock() // 60) + 1},
+            status_code=429,
+        )
+
     settings = get_settings(db)
     if not settings.password_set or not verify_password(password, settings.admin_password_hash):
+        login_guard.register_failure()
         return templates.TemplateResponse(
             request, "login.html", {"error": "Falsches Passwort."}, status_code=400
         )
 
+    login_guard.register_success()
     request.session["authenticated"] = True
     return RedirectResponse("/", status_code=303)
 

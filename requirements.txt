@@ -15,4 +15,5 @@ python-dateutil>=2.9
 bcrypt>=4.2
 itsdangerous>=2.2
 qrcode>=7.4
+apscheduler>=3.10,<4.0
 pytest>=8.3
