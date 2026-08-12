@@ -1,0 +1,22 @@
+services:
+  rechnungsworkflow:
+    build: .
+    container_name: rechnungsworkflow
+    restart: unless-stopped
+    environment:
+      - FORWARDED_ALLOW_IPS=${FORWARDED_ALLOW_IPS:-*}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      # Ein Pfad fuer alles Persistente (DB + Belegdateien), analog zum
+      # Nextcloud-DB-Bind-Mount - db.sqlite3 und storage/invoices/ landen beide
+      # unterhalb von ${DATA_PATH}/storage.
+      - ${DATA_PATH}/storage:/app/storage
+      # App-eigene .env (SESSION_SECRET_KEY) - getrennt von der .env, die
+      # docker compose selbst fuer die ${...}-Platzhalter in dieser Datei liest.
+      - ${DATA_PATH}/.env:/app/.env:ro
+    ports:
+      # Traefik spricht die App per dynamic.yaml (IP:Port) an, siehe README ->
+      # "Docker-Betrieb". Auf 127.0.0.1 einschraenken, wenn Traefik auf
+      # demselben Host laeuft und sonst niemand direkt zugreifen soll.
+      - "${APP_PORT:-8000}:8000"

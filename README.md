@@ -350,6 +350,91 @@ automatisches HTTPS inkl. Zertifikat; für reines IP:Port ohne Domain (self-sign
 oder Traefik gilt das gleiche Prinzip – Host/X-Forwarded-*-Header weiterreichen, TLS
 im Proxy terminieren.
 
+## Docker-Betrieb (docker compose)
+
+Für einen Traefik-Setup mit dateibasiertem Provider (`dynamic.yaml`, Backend per
+IP:Port statt Docker-Labels) bringt der mitgelieferte `docker-compose.yml` **nur**
+den App-Container mit – kein eigenes nginx, kein eigenes Zertifikats-Handling, das
+übernimmt der vorhandene Traefik.
+
+### 1. Verzeichnis + Konfiguration anlegen
+
+```bash
+mkdir -p /var/docker/rechnungsworkflow
+cat > /var/docker/rechnungsworkflow/.env <<'EOF'
+SESSION_SECRET_KEY=<mit `python3 -c "import secrets; print(secrets.token_hex(32))"` erzeugen>
+EOF
+```
+
+Das ist die **App-eigene** `.env` (nur `SESSION_SECRET_KEY` nötig – alle anderen
+Zugangsdaten werden nach dem Start über die Weboberfläche gepflegt).
+
+Danach im Projektverzeichnis (neben `docker-compose.yml`) die **Compose-eigene**
+`.env` anlegen – das ist eine andere Datei mit demselben Namen, sie steuert nur die
+`${...}`-Platzhalter in `docker-compose.yml`:
+
+```bash
+cp docker-compose.env.example .env
+# DATA_PATH, APP_PORT, FORWARDED_ALLOW_IPS bei Bedarf anpassen
+```
+
+### 2. Starten
+
+```bash
+docker compose up -d --build
+docker compose logs -f
+```
+
+Migrationen laufen bei jedem Start automatisch (`docker-entrypoint.sh`), auch nach
+einem späteren `git pull` + `docker compose up -d --build` – kein manuelles
+`docker compose exec ... alembic upgrade head` nötig.
+
+### 3. In Traefiks `dynamic.yaml` eintragen
+
+```yaml
+http:
+  routers:
+    rechnungsworkflow:
+      rule: "Host(`rechnungen.example.de`)"
+      service: rechnungsworkflow
+      tls: {}   # Zertifikat/Resolver wie bei deinen anderen Routern
+
+  services:
+    rechnungsworkflow:
+      loadBalancer:
+        servers:
+          - url: "http://<Docker-Host-IP>:8000"
+```
+
+`<Docker-Host-IP>` ist die Adresse, unter der Traefik den Docker-Host erreicht –
+bei Traefik im selben Docker-Netz z.B. die Bridge-Gateway-IP (`docker network
+inspect bridge | grep Gateway`, oft `172.17.0.1`), bei Traefik mit `network_mode:
+host` oder auf einem anderen Host die tatsächliche LAN-IP. Der Port muss zum
+`APP_PORT` aus der Compose-`.env` passen.
+
+### 4. `FORWARDED_ALLOW_IPS` einschränken (empfohlen)
+
+Der Standardwert `*` in `docker-compose.env.example` vertraut `X-Forwarded-*`-Headern
+von jeder Quelle – für ein Heimnetz ohne direkten Zugriff auf den App-Port von außen
+vertretbar, aber enger geht sicherer: `FORWARDED_ALLOW_IPS` in der Compose-`.env`
+auf genau die IP setzen, mit der Traefik den Container erreicht (dieselbe wie in
+Schritt 3 als `<Docker-Host-IP>` ermittelt).
+
+### Persistenz
+
+Ein einziger Bind-Mount unter `${DATA_PATH}/storage` deckt sowohl die SQLite-Datenbank
+als auch alle Belegdateien ab (analog zum Nextcloud-DB-Mount-Muster) – ein
+`docker compose down && docker compose up -d` (ohne `-v`) verliert nichts.
+Regelmäßig trotzdem über **Einstellungen → Backup** ein ZIP ziehen (siehe oben) –
+das schützt zusätzlich gegen einen kaputten Host, nicht nur gegen einen
+neu erstellten Container.
+
+Live getestet: Image baut, Migrationen laufen beim ersten Start automatisch durch,
+`/setup` und Login funktionieren über den veröffentlichten Port, ein
+Container-Neustart (`docker restart`) behält sowohl die Datenbank (Bind-Mount) als
+auch die angemeldete Session (gleicher `SESSION_SECRET_KEY` aus der gemounteten
+`.env`).
+
 ## Sicherheit
 
 Die App ist für den **lokalen** Einsatz durch eine einzelne Person gedacht. Der
