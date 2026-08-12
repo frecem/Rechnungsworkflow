@@ -104,12 +104,19 @@ Nach dem Login unter **Einstellungen** (`/settings`) hinterlegen:
   normale Passwörter oft nicht per IMAP funktionieren) – Button "IMAP-Verbindung
   testen" prüft Login und Postfachzugriff sofort, auch mit gerade eingetippten, noch
   nicht gespeicherten Werten, ohne etwas zu importieren
-- SMTP-Zugangsdaten (für Girocode-Versand und Weiterleitung) – ebenfalls mit
-  "SMTP-Verbindung testen" sofort prüfbar, ohne eine echte Mail zu verschicken
+- SMTP-Zugangsdaten (für Girocode-Versand und Weiterleitung) – mit "SMTP-Verbindung
+  testen" sofort prüfbar, ohne eine echte Mail zu verschicken (nur Verbindung+Login).
+  Für eine echte Zustellprüfung zusätzlich eine Adresse bei "Testmail an" eintragen
+  und "Testmail senden" klicken – verschickt eine tatsächliche Testmail dorthin.
 - **Steuer-App-Adresse**: Scan-E-Mail-Eingang deiner Steuer-Software (z.B. die
-  [Buhl Steuer-Scan-App](https://www.buhl.de/steuer/steuer-scan-app/))
+  [Buhl Steuer-Scan-App](https://www.buhl.de/steuer/steuer-scan-app/)). Die Mail
+  dorthin ist bewusst textleer (nur der Anhang) – solche Apps werten die PDF selbst
+  per OCR aus, zusätzlicher Text stört eher.
 - **Paperless-ngx-Adresse**: [E-Mail-Eingang](https://docs.paperless-ngx.com/usage/#usage-email)
-  deiner paperless-ngx-Instanz
+  deiner paperless-ngx-Instanz. Der Betreff enthält Absender + einen
+  "aus dem Rechnungsworkflow"-Hinweis (z.B. `Musterfirma GmbH – Rechnung aus dem
+  Rechnungsworkflow`), damit das Dokument in Paperless-ngx auch ohne geöffneten
+  Anhang klar zuzuordnen ist.
 - **Girocode-Empfänger-Adresse**: wohin der erzeugte Zahlungs-QR-Code (PNG) gesendet wird
 - Standard-Weiterleitungsziel (Steuer / Paperless / beides) – vorbelegt bei jeder
   Freigabe, pro Rechnung änderbar
@@ -194,6 +201,21 @@ Check über den Button auf der Einstellungen-Seite (nützlich zum Testen der
 Konfiguration, ohne auf 7 Uhr zu warten) sind die beiden Wege, den Kreislauf zu
 beenden. Überfällige wiederkehrende Zahlungen (siehe unten) fließen in dieselbe
 Sammel-Mail ein.
+
+## Unbearbeitete-Rechnungen-Erinnerung
+
+Getrennt von der Fälligkeits-Erinnerung: erinnert an Rechnungen, die noch eine
+Board-Aktion brauchen (Status `new`/`extracted`/`reviewed`, also noch nicht
+freigegeben oder abgelehnt). Läuft **werktags um 8:00 Uhr** und **am Wochenende um
+9:00 Uhr** (zwei separate Zeitpläne, da eine einzelne Cron-Angabe keine
+unterschiedliche Uhrzeit je nach Wochentag ausdrücken kann) und listet alle
+betroffenen Rechnungen einzeln in der Mail auf. Der automatische, stündliche
+IMAP-Abruf läuft davon unabhängig weiter – neue Rechnungen lassen sich also jederzeit
+sofort einzeln bearbeiten, ohne auf den nächsten Digest zu warten. Es gibt bewusst
+kein "schon erinnert"-Flag: solange eine Rechnung unbearbeitet bleibt, taucht sie
+jeden Tag erneut auf; sobald sie freigegeben/abgelehnt wird, verschwindet sie am
+nächsten Tag automatisch aus der Mail. Manueller Test-Button auf der
+Einstellungen-Seite, analog zur Fälligkeits-Erinnerung.
 
 ## Wiederkehrende Zahlungen
 
@@ -368,10 +390,14 @@ Auth-Fehler, Verbindungsfehler, jeweils gemockt), die Backup-Überfälligkeitser
 den Passwort-Reset (Token-Erzeugung/-Wiederverwendung/-Ablauf, Versandfehler,
 gültiger/ungültiger/abgelaufener Token beim Abschluss), die Session-Logik für
 "Angemeldet bleiben" (kurze vs. lange Gültigkeit, Ablauf-Erkennung inkl. eines
-gefundenen Bugs mit `expires_at == 0`) sowie den Passkey-Service (Registrierung inkl.
+gefundenen Bugs mit `expires_at == 0`), den Passkey-Service (Registrierung inkl.
 Ausschluss bereits registrierter Credentials, Login inkl. Sign-Count-Update, jeweils
-mit gemockter WebAuthn-Kryptoverifikation) – ohne Abhängigkeit von Tesseract/Poppler
-oder einem echten Postfach, läuft daher überall.
+mit gemockter WebAuthn-Kryptoverifikation), die Unbearbeitete-Rechnungen-Erinnerung
+(korrekte Status-Filterung, Digest-Inhalt, kein Versand bei fehlender Konfiguration,
+Verhalten bei SMTP-Verbindungsfehlern) sowie die zielspezifischen Weiterleitungs-Mails
+(leerer Body an die Steuer-App, Betreff mit Absender + Workflow-Hinweis an
+Paperless-ngx) und die SMTP-Testmail-Funktion – ohne Abhängigkeit von
+Tesseract/Poppler oder einem echten Postfach, läuft daher überall.
 
 ## Manuelle Verifikation (bereits durchgeführt)
 
@@ -462,3 +488,14 @@ Session-Ablauf mit `if expires_at and ...` statt `if expires_at is not None and 
 aufgedeckten) Ablaufzeitpunkt von exakt `0` wertete Python das als "falsy" und
 übersprang die Ablaufprüfung komplett. Beide Stellen sind gefixt, Regressionstests
 ergänzt.
+
+SMTP-Testmail, Unbearbeitete-Rechnungen-Erinnerung und zielspezifische
+Weiterleitungs-Mails live über HTTP getestet: "Testmail senden" ohne Empfänger-Adresse
+liefert eine klare Validierungsmeldung statt eines Absturzes, mit Adresse aber
+unerreichbarem SMTP-Host einen sauberen Fehlertext (eingegebene Empfänger-Adresse
+bleibt im Formular erhalten); der manuelle Unbearbeitete-Rechnungen-Check läuft ohne
+500er auch bei nicht erreichbarem SMTP; der Girocode+Weiterleitungs-Flow mit
+`forward_target=both` und absichtlich unerreichbarem SMTP-Host bricht sauber mit
+Fehlermeldung ab statt mit unbehandelter Exception. Die unterschiedlichen
+Mail-Inhalte pro Ziel (leerer Body an Steuer, Betreff mit Absender + Workflow-Hinweis
+an Paperless-ngx) sind zusätzlich per Unit-Test auf den exakten Inhalt geprüft.

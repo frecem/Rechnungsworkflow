@@ -44,6 +44,10 @@
       <input type="password" name="smtp_password" placeholder="{% if settings.smtp_password %}•••• hinterlegt{% else %}nicht gesetzt{% endif %}">
     </label>
     <button type="submit" formaction="/settings/test-smtp" formnovalidate>SMTP-Verbindung testen</button>
+    <label>Testmail an <span class="hint">(verschickt eine echte Testmail zur Zustellprüfung)</span>
+      <input type="email" name="test_recipient" value="{{ test_recipient or '' }}" placeholder="du@example.com">
+    </label>
+    <button type="submit" formaction="/settings/test-smtp-mail" formnovalidate>Testmail senden</button>
     {% if smtp_test_result %}
       <p class="{% if smtp_test_result[0] %}info{% else %}warning{% endif %}">{{ smtp_test_result[1] }}</p>
     {% endif %}
@@ -89,6 +93,13 @@
 {% endif %}
 <form method="post" action="/settings/check-reminders" style="display:inline">
   <button type="submit">Fälligkeits-Erinnerungen jetzt prüfen</button>
+</form>
+
+{% if unprocessed_check_result %}
+  <p class="info">{{ unprocessed_check_result }} unbearbeitete Rechnung(en) gemeldet.</p>
+{% endif %}
+<form method="post" action="/settings/check-unprocessed" style="display:inline">
+  <button type="submit">Unbearbeitete-Rechnungen-Erinnerung jetzt prüfen</button>
 </form>
 
 <h2>Kategorien</h2>

@@ -17,6 +17,10 @@ from app.services.stats import RecurringGroup, recurring_overview
 
 REMINDER_ELIGIBLE_STATUSES = ("approved", "forwarded")
 
+# Stati, die noch eine Aktion auf dem Board brauchen (Prüfen/Freigeben/Ablehnen) -
+# alles davor/danach (approved/forwarded/rejected) ist bereits abgeschlossen.
+UNPROCESSED_STATUSES = ("new", "extracted", "reviewed")
+
 logger = logging.getLogger(__name__)
 
 
@@ -140,5 +144,70 @@ def run_reminder_check_standalone() -> int:
     db = SessionLocal()
     try:
         return run_reminder_check(db)
+    finally:
+        db.close()
+
+
+def unprocessed_invoices(db: Session) -> list[Invoice]:
+    """Rechnungen, die noch eine Board-Aktion brauchen (noch nicht freigegeben/abgelehnt)."""
+    return (
+        db.query(Invoice)
+        .filter(Invoice.status.in_(UNPROCESSED_STATUSES))
+        .order_by(Invoice.created_at.asc())
+        .all()
+    )
+
+
+def _format_unprocessed_digest(invoices: list[Invoice], today: date) -> str:
+    lines = [f"Unbearbeitete Rechnungen ({today.isoformat()}):", ""]
+    for inv in invoices:
+        lines.append(
+            f"- #{inv.id} {inv.sender_name or 'Unbekannt'} – "
+            f"{inv.amount_gross or '-'} {inv.currency} – Status: {inv.status}"
+        )
+    lines.append("")
+    lines.append("Zum Bearbeiten: Board in Rechnungsworkflow öffnen.")
+    return "\n".join(lines)
+
+
+def run_unprocessed_check(db: Session) -> int:
+    """Erinnert an Rechnungen, die noch nicht geprüft/freigegeben wurden.
+
+    Läuft werktags morgens und am Wochenende etwas später (siehe app.main), zusätzlich
+    zum stündlichen IMAP-Sync - neue Rechnungen können also jederzeit einzeln bearbeitet
+    werden, ohne auf diesen Digest zu warten. Es gibt bewusst kein "schon erinnert"-Flag
+    wie bei der Fälligkeits-Erinnerung: solange eine Rechnung unbearbeitet bleibt, soll
+    sie jeden Tag erneut auftauchen; sobald sie freigegeben/abgelehnt wird, fällt sie
+    automatisch aus der Status-Filterung heraus und erscheint am nächsten Tag nicht mehr.
+    """
+    settings = get_settings(db)
+    if not settings.reminder_email or not settings.smtp_configured:
+        return 0
+
+    invoices = unprocessed_invoices(db)
+    if not invoices:
+        return 0
+
+    try:
+        send_email(
+            db,
+            to=settings.reminder_email,
+            subject=f"{len(invoices)} unbearbeitete Rechnung(en)",
+            body=_format_unprocessed_digest(invoices, date.today()),
+        )
+    except SmtpNotConfigured:
+        return 0
+    except (smtplib.SMTPException, OSError):
+        logger.warning("Versand des Unbearbeitet-Digests fehlgeschlagen", exc_info=True)
+        return 0
+
+    return len(invoices)
+
+
+def run_unprocessed_check_standalone() -> int:
+    """Einstiegspunkt für den Scheduler-Job: öffnet/schließt eine eigene DB-Session."""
+    db = SessionLocal()
+    try:
+        return run_unprocessed_check(db)
     finally:
         db.close()

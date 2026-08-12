@@ -10,7 +10,7 @@ from app.models import FORWARD_TARGETS, AppSettings, WebauthnCredential
 from app.services import imap_client, smtp_client
 from app.services.auth import hash_password, verify_password
 from app.services.backup import backup_filename, build_backup_zip, is_backup_overdue
-from app.services.reminders import run_reminder_check
+from app.services.reminders import run_reminder_check, run_unprocessed_check
 from app.services.settings_service import add_category, delete_category, get_settings, rename_category
 
 router = APIRouter()
@@ -138,6 +138,37 @@ def test_smtp(
     return _settings_response(request, db, settings, {"smtp_test_result": smtp_test_result})
 
 
+@router.post("/settings/test-smtp-mail")
+def test_smtp_mail(
+    request: Request,
+    smtp_host: str = Form(""),
+    smtp_port: int = Form(587),
+    smtp_user: str = Form(""),
+    smtp_password: str = Form(""),
+    test_recipient: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    settings = get_settings(db)
+    password = smtp_password or settings.smtp_password
+
+    if not smtp_host or not smtp_user or not password:
+        smtp_test_result = (False, "Host, Benutzer und Passwort müssen ausgefüllt sein.")
+    elif not test_recipient.strip():
+        smtp_test_result = (False, "Bitte eine Empfänger-Adresse für die Testmail angeben.")
+    else:
+        smtp_test_result = smtp_client.send_test_mail(
+            smtp_host, smtp_port, smtp_user, password, test_recipient.strip()
+        )
+
+    settings.smtp_host = smtp_host or None
+    settings.smtp_port = smtp_port
+    settings.smtp_user = smtp_user or None
+
+    return _settings_response(
+        request, db, settings, {"smtp_test_result": smtp_test_result, "test_recipient": test_recipient}
+    )
+
+
 @router.post("/settings/categories")
 def add_category_route(name: str = Form(...), db: Session = Depends(get_db)):
     add_category(db, name)
@@ -161,6 +192,13 @@ def check_reminders_now(request: Request, db: Session = Depends(get_db)):
     settings = get_settings(db)
     count = run_reminder_check(db)
     return _settings_response(request, db, settings, {"reminder_check_result": count})
+
+
+@router.post("/settings/check-unprocessed")
+def check_unprocessed_now(request: Request, db: Session = Depends(get_db)):
+    settings = get_settings(db)
+    count = run_unprocessed_check(db)
+    return _settings_response(request, db, settings, {"unprocessed_check_result": count})
 
 
 @router.get("/settings/backup")

@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models import AppSettings, Invoice
-from app.services.reminders import due_invoices_for_reminder, run_reminder_check
+from app.services.reminders import due_invoices_for_reminder, run_reminder_check, run_unprocessed_check, unprocessed_invoices
 
 
 @pytest.fixture
@@ -222,3 +222,64 @@ def test_run_reminder_check_no_alert_for_recurring_within_grace_period(db):
 
     assert count == 0
     mock_send.assert_not_called()
+
+
+def test_unprocessed_invoices_includes_only_pending_statuses(db):
+    new_inv = make_invoice(db, hash_suffix="o", status="new")
+    extracted_inv = make_invoice(db, hash_suffix="p", status="extracted")
+    reviewed_inv = make_invoice(db, hash_suffix="q", status="reviewed")
+    make_invoice(db, hash_suffix="r", status="approved")
+    make_invoice(db, hash_suffix="s", status="forwarded")
+    make_invoice(db, hash_suffix="t", status="rejected")
+
+    result = unprocessed_invoices(db)
+
+    assert {inv.id for inv in result} == {new_inv.id, extracted_inv.id, reviewed_inv.id}
+
+
+def test_run_unprocessed_check_sends_digest(db):
+    _settings(db)
+    make_invoice(db, hash_suffix="u", status="new", sender_name="Vermieter GmbH")
+    make_invoice(db, hash_suffix="v", status="extracted")
+
+    with patch("app.services.reminders.send_email") as mock_send:
+        count = run_unprocessed_check(db)
+
+    assert count == 2
+    mock_send.assert_called_once()
+    call_kwargs = mock_send.call_args.kwargs
+    assert call_kwargs["to"] == "reminders@example.invalid"
+    assert "Vermieter GmbH" in call_kwargs["body"]
+    assert "2" in call_kwargs["subject"]
+
+
+def test_run_unprocessed_check_no_pending_invoices_returns_zero(db):
+    _settings(db)
+    make_invoice(db, hash_suffix="w", status="approved")
+
+    with patch("app.services.reminders.send_email") as mock_send:
+        count = run_unprocessed_check(db)
+
+    assert count == 0
+    mock_send.assert_not_called()
+
+
+def test_run_unprocessed_check_without_reminder_email_returns_zero(db):
+    _settings(db, reminder_email=None)
+    make_invoice(db, hash_suffix="x", status="new")
+
+    with patch("app.services.reminders.send_email") as mock_send:
+        count = run_unprocessed_check(db)
+
+    assert count == 0
+    mock_send.assert_not_called()
+
+
+def test_run_unprocessed_check_connection_error_does_not_raise(db):
+    _settings(db)
+    make_invoice(db, hash_suffix="y", status="new")
+
+    with patch("app.services.reminders.send_email", side_effect=OSError("Name or service not known")):
+        count = run_unprocessed_check(db)
+
+    assert count == 0

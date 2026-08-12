@@ -12,7 +12,7 @@ from app.database import SessionLocal
 from app.routers import auth, board, email_sync, export, invoices, settings, stats, upload, webauthn
 from app.services.auth import SESSION_REMEMBER_DAYS, session_is_valid
 from app.services.imap_client import sync_new_invoices_standalone
-from app.services.reminders import run_reminder_check_standalone
+from app.services.reminders import run_reminder_check_standalone, run_unprocessed_check_standalone
 from app.services.settings_service import get_settings
 
 PUBLIC_PATHS = {
@@ -53,6 +53,27 @@ async def lifespan(app: FastAPI):
         trigger="cron",
         minute=0,
         id="imap_auto_sync",
+        replace_existing=True,
+    )
+    # Unbearbeitete-Rechnungen-Digest: werktags frueher, am Wochenende etwas spaeter -
+    # zwei separate Cron-Jobs statt einem, da eine einzelne Cron-Angabe keine
+    # unterschiedliche Uhrzeit je nach Wochentag ausdruecken kann.
+    scheduler.add_job(
+        run_unprocessed_check_standalone,
+        trigger="cron",
+        day_of_week="mon-fri",
+        hour=8,
+        minute=0,
+        id="unprocessed_invoices_weekday",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        run_unprocessed_check_standalone,
+        trigger="cron",
+        day_of_week="sat,sun",
+        hour=9,
+        minute=0,
+        id="unprocessed_invoices_weekend",
         replace_existing=True,
     )
     scheduler.start()

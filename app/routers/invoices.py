@@ -11,7 +11,7 @@ from app.database import get_db
 from app.models import FORWARD_TARGETS, STATUSES, Invoice, InvoiceStatusHistory
 from app.services import extraction, girocode, storage
 from app.services.settings_service import get_settings
-from app.services.smtp_client import SmtpNotConfigured, send_girocode, send_invoice_copy
+from app.services.smtp_client import SmtpNotConfigured, send_girocode, send_to_paperless, send_to_steuer
 from app.services.status import InvalidStatusTransition, change_status
 
 router = APIRouter()
@@ -264,15 +264,17 @@ def girocode_submit(
     if not settings.girocode_email:
         return render_error("Keine Girocode-Empfänger-Adresse in den Einstellungen hinterlegt.")
 
-    target_emails: list[str] = []
+    # (Zielart, Empfänger) statt einer reinen E-Mail-Liste, damit beim Versand die
+    # jeweils passende Mailvorlage gewählt werden kann (Steuer-App vs. Paperless-ngx).
+    target_sends: list[tuple[str, str]] = []
     if forward_target in ("steuer", "both"):
         if not settings.steuer_email:
             return render_error("Keine Steuer-E-Mail-Adresse in den Einstellungen hinterlegt.")
-        target_emails.append(settings.steuer_email)
+        target_sends.append(("steuer", settings.steuer_email))
     if forward_target in ("paperless", "both"):
         if not settings.paperless_email:
             return render_error("Keine Paperless-ngx-E-Mail-Adresse in den Einstellungen hinterlegt.")
-        target_emails.append(settings.paperless_email)
+        target_sends.append(("paperless", settings.paperless_email))
 
     try:
         payload = girocode.build_epc_payload(recipient_name, iban, bic or None, parsed_amount, reference)
@@ -298,14 +300,17 @@ def girocode_submit(
     db.commit()
 
     try:
-        for target_email in target_emails:
-            send_invoice_copy(db, invoice, target_email)
+        for target_type, target_email in target_sends:
+            if target_type == "steuer":
+                send_to_steuer(db, invoice, target_email)
+            else:
+                send_to_paperless(db, invoice, target_email)
     except (smtplib.SMTPException, OSError) as exc:
         return render_error(
             f"Girocode wurde versendet, aber die Weiterleitung der Rechnung ist fehlgeschlagen: {exc}"
         )
 
-    invoice.forwarded_to = ", ".join(target_emails)
+    invoice.forwarded_to = ", ".join(email for _, email in target_sends)
     invoice.forwarded_at = datetime.utcnow()
     db.commit()
 
