@@ -6,10 +6,13 @@ import webauthn
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from starlette.datastructures import URL
+from webauthn.helpers.exceptions import InvalidRegistrationResponse
 
 from app.database import Base
 from app.models import WebauthnCredential
 from app.services import webauthn_service
+
+CHALLENGE = webauthn.helpers.bytes_to_base64url(b"some-challenge-bytes")
 
 
 class FakeRequest:
@@ -61,13 +64,13 @@ def test_begin_registration_excludes_existing_credentials(db):
 
 def test_complete_registration_without_challenge_raises(db):
     request = FakeRequest("https://rechnungen.example.com/settings")
-    with pytest.raises(Exception):
+    with pytest.raises(InvalidRegistrationResponse):
         webauthn_service.complete_registration(db, request, "{}", "Laptop")
 
 
 def test_complete_registration_stores_credential(db):
     request = FakeRequest("https://rechnungen.example.com/settings")
-    request.session[webauthn_service.CHALLENGE_SESSION_KEY] = webauthn.helpers.bytes_to_base64url(b"some-challenge-bytes")
+    request.session[webauthn_service.CHALLENGE_SESSION_KEY] = CHALLENGE
 
     fake_verification = SimpleNamespace(
         credential_id=b"credential-id-bytes",
@@ -99,7 +102,7 @@ def test_complete_authentication_without_challenge_returns_false(db):
 
 def test_complete_authentication_unknown_credential_returns_false(db):
     request = FakeRequest("https://rechnungen.example.com/login")
-    request.session[webauthn_service.CHALLENGE_SESSION_KEY] = webauthn.helpers.bytes_to_base64url(b"some-challenge-bytes")
+    request.session[webauthn_service.CHALLENGE_SESSION_KEY] = CHALLENGE
 
     fake_credential = SimpleNamespace(raw_id=b"unknown-id")
     with patch(
@@ -119,7 +122,7 @@ def test_complete_authentication_success_updates_sign_count_and_last_used(db):
     db.commit()
 
     request = FakeRequest("https://rechnungen.example.com/login")
-    request.session[webauthn_service.CHALLENGE_SESSION_KEY] = webauthn.helpers.bytes_to_base64url(b"some-challenge-bytes")
+    request.session[webauthn_service.CHALLENGE_SESSION_KEY] = CHALLENGE
 
     fake_credential = SimpleNamespace(raw_id=b"credential-id-bytes")
     fake_verification = SimpleNamespace(new_sign_count=4)

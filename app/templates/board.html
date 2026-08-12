@@ -10,12 +10,18 @@
   <p class="info">
     Upload: {{ request.query_params.get("upload_new") }} neue Rechnung(en){% if request.query_params.get("upload_dup") and request.query_params.get("upload_dup") != "0" %}, {{ request.query_params.get("upload_dup") }} bereits bekannt{% endif %}.
   </p>
+  {% if request.query_params.get("upload_rejected") and request.query_params.get("upload_rejected") != "0" %}
+    <p class="warning">
+      {{ request.query_params.get("upload_rejected") }} Datei(en) nicht übernommen –
+      es werden nur PDF- und Bilddateien unterstützt.
+    </p>
+  {% endif %}
 {% endif %}
 
 <form method="post" action="/upload" enctype="multipart/form-data" id="board-upload-form">
   <label for="board-upload-input" class="upload-dropzone" id="board-upload-dropzone">
     <span class="upload-dropzone-text">Belege hierher ziehen oder klicken zum Hochladen (PDF, Foto/Scan, auch mehrere auf einmal)</span>
-    <input type="file" name="files" id="board-upload-input" accept="application/pdf,image/*" multiple required>
+    <input type="file" name="files" id="board-upload-input" accept="application/pdf,image/jpeg,image/png,image/gif,image/webp,image/tiff,image/heic" multiple required>
   </label>
 </form>
 

@@ -1,0 +1,36 @@
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort (Importreihenfolge)
+    "UP",   # pyupgrade (veraltete Syntax)
+    "B",    # flake8-bugbear (haeufige Fehlerquellen)
+    "SIM",  # flake8-simplify
+    "C4",   # flake8-comprehensions
+]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI-Idiom: Abhaengigkeiten und Formularfelder werden als Default-Argument
+# deklariert. B008 ("Funktionsaufruf im Default-Argument") ist dort kein Fehler.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Form",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Header",
+    "fastapi.File",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Alembic-Revisionen sind generiert und folgen einem eigenen Aufbau.
+"alembic/versions/*" = ["E501", "I001"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["error::DeprecationWarning"]

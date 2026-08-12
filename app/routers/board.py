@@ -1,3 +1,5 @@
+import contextlib
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -66,10 +68,8 @@ def rename_column(column_id: int, name: str = Form(...), db: Session = Depends(g
 
 @router.post("/board/columns/{column_id}/delete")
 def delete_column(column_id: int, db: Session = Depends(get_db)):
-    try:
+    with contextlib.suppress(board_service.LastColumnError):
         board_service.delete_column(db, column_id)
-    except board_service.LastColumnError:
-        pass
     return RedirectResponse("/board/columns", status_code=303)
 
 

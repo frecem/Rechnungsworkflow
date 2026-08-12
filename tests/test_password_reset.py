@@ -23,14 +23,14 @@ def db():
 
 
 def _settings(db, **overrides):
-    defaults = dict(
-        id=1,
-        admin_password_hash="old-hash",
-        smtp_host="smtp.example.invalid",
-        smtp_user="me@example.invalid",
-        smtp_password="secret",
-        reminder_email="me@example.invalid",
-    )
+    defaults = {
+        "id": 1,
+        "admin_password_hash": "old-hash",
+        "smtp_host": "smtp.example.invalid",
+        "smtp_user": "me@example.invalid",
+        "smtp_password": "secret",
+        "reminder_email": "me@example.invalid",
+    }
     defaults.update(overrides)
     settings = AppSettings(**defaults)
     db.add(settings)
@@ -75,10 +75,52 @@ def test_request_reset_reuses_existing_valid_token(db):
     db.refresh(settings)
     first_token = settings.password_reset_token
 
+    # Cooldown ueberspringen, um die Token-Wiederverwendung isoliert zu pruefen
+    settings.password_reset_token_expires_at = datetime.utcnow() + timedelta(minutes=1)
+    db.commit()
+
     with patch("app.services.password_reset.send_email"):
         password_reset.request_reset(db, "http://localhost:8000")
     db.refresh(settings)
     assert settings.password_reset_token == first_token
+
+
+def test_request_reset_verschickt_innerhalb_des_cooldowns_keine_zweite_mail(db):
+    """/forgot-password ist ohne Login erreichbar.
+
+    Ohne Bremse koennte jeder durch wiederholtes Absenden beliebig viele Mails an
+    das Postfach des Besitzers ausloesen.
+    """
+    _settings(db)
+    with patch("app.services.password_reset.send_email") as first_send:
+        password_reset.request_reset(db, "http://localhost:8000")
+    first_send.assert_called_once()
+
+    with patch("app.services.password_reset.send_email") as second_send:
+        ok, message = password_reset.request_reset(db, "http://localhost:8000")
+
+    second_send.assert_not_called()
+    assert ok is True
+    assert "bereits" in message.lower()
+
+
+def test_request_reset_verschickt_nach_ablauf_des_cooldowns_wieder(db):
+    settings = _settings(db)
+    with patch("app.services.password_reset.send_email"):
+        password_reset.request_reset(db, "http://localhost:8000")
+
+    # Token bleibt gueltig, aber der Versand liegt laenger als der Cooldown zurueck
+    db.refresh(settings)
+    settings.password_reset_token_expires_at = datetime.utcnow() + timedelta(
+        minutes=password_reset.RESET_TOKEN_TTL_MINUTES - password_reset.RESEND_COOLDOWN_MINUTES - 1
+    )
+    db.commit()
+
+    with patch("app.services.password_reset.send_email") as mock_send:
+        ok, _ = password_reset.request_reset(db, "http://localhost:8000")
+
+    assert ok is True
+    mock_send.assert_called_once()
 
 
 def test_request_reset_generates_new_token_after_expiry(db):
@@ -107,7 +149,7 @@ def test_request_reset_send_failure_reports_error(db):
 
 
 def test_validate_token_accepts_valid_token(db):
-    settings = _settings(
+    _settings(
         db,
         password_reset_token="abc123",
         password_reset_token_expires_at=datetime.utcnow() + timedelta(minutes=10),

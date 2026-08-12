@@ -6,7 +6,6 @@
   <title>{% block title %}Rechnungsworkflow{% endblock %}</title>
   {% include "_pwa_head.html" %}
   <link rel="stylesheet" href="/static/style.css">
-  <script src="/static/htmx.min.js"></script>
 </head>
 <body>
   <header class="topbar">
@@ -18,10 +17,10 @@
       <a href="/stats">Auswertung</a>
       <a href="/export/csv">CSV-Export</a>
       <a href="/settings">Einstellungen</a>
-      <form method="post" action="/email-sync" style="display:inline">
+      <form method="post" action="/email-sync" class="form-inline">
         <button type="submit">E-Mails synchronisieren</button>
       </form>
-      <form method="post" action="/logout" style="display:inline">
+      <form method="post" action="/logout" class="form-inline">
         <button type="submit">Abmelden</button>
       </form>
     </nav>
@@ -29,5 +28,6 @@
   <main class="container">
     {% block content %}{% endblock %}
   </main>
+  <script src="/static/app.js"></script>
 </body>
 </html>

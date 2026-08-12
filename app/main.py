@@ -25,6 +25,36 @@ PUBLIC_PATHS = {
 }
 DEFAULT_SESSION_SECRET_KEY = "change-me-please-a-long-random-string"
 
+# Strikte Content-Security-Policy. Moeglich ohne 'unsafe-inline', weil saemtliches
+# JavaScript in /static/*.js liegt und alle Styles in style.css - im HTML gibt es
+# weder <script>-Bloecke noch onclick=/style=-Attribute. Damit laeuft ein etwaig
+# eingeschleustes Skript gar nicht erst an.
+# frame-src 'self' wird fuer die PDF-Vorschau im iframe gebraucht.
+CONTENT_SECURITY_POLICY = "; ".join(
+    [
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self'",
+        "img-src 'self' data:",
+        "frame-src 'self'",
+        "object-src 'none'",
+        "base-uri 'none'",
+        "form-action 'self'",
+        # 'self' statt 'none': die Beleg-Vorschau bettet /invoices/<id>/file per
+        # iframe in die eigene Detailseite ein. Fremde Seiten koennen die App
+        # weiterhin nicht einbetten (Clickjacking-Schutz bleibt).
+        "frame-ancestors 'self'",
+    ]
+)
+
+SECURITY_HEADERS = {
+    "Content-Security-Policy": CONTENT_SECURITY_POLICY,
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    # Die App braucht weder Kamera/Mikrofon/Standort noch Zahlungs-APIs.
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+}
+
 logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler()
@@ -140,6 +170,19 @@ app.add_middleware(
     same_site="lax",
     max_age=SESSION_REMEMBER_DAYS * 24 * 60 * 60,
 )
+
+
+# Zuletzt registriert und damit die aeusserste Schicht: so bekommen auch die
+# Redirects, die require_login selbst erzeugt (und die nie beim Routen-Handler
+# ankommen), die Security-Header gesetzt.
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    for header, value in SECURITY_HEADERS.items():
+        # setdefault: Routen, die bewusst einen eigenen Wert setzen
+        # (z.B. die Beleg-Auslieferung), behalten ihren.
+        response.headers.setdefault(header, value)
+    return response
 
 
 @app.get("/")

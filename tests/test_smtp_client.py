@@ -1,4 +1,3 @@
-import smtplib
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -22,17 +21,17 @@ def db():
 
 
 def make_invoice(**overrides):
-    defaults = dict(
-        source_type="upload",
-        file_path="2026/test.pdf",
-        file_hash_sha256="hash-1",
-        sender_name="Musterfirma GmbH",
-        invoice_number="RE-2026-001",
-        amount_gross=100,
-        currency="EUR",
-        file_original_name="rechnung.pdf",
-        file_mime_type="application/pdf",
-    )
+    defaults = {
+        "source_type": "upload",
+        "file_path": "2026/test.pdf",
+        "file_hash_sha256": "hash-1",
+        "sender_name": "Musterfirma GmbH",
+        "invoice_number": "RE-2026-001",
+        "amount_gross": 100,
+        "currency": "EUR",
+        "file_original_name": "rechnung.pdf",
+        "file_mime_type": "application/pdf",
+    }
     defaults.update(overrides)
     return Invoice(**defaults)
 

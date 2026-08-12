@@ -68,17 +68,17 @@
 
     <div class="actions">
       {% if invoice.status in ("extracted", "reviewed") %}
-        <form method="post" action="/invoices/{{ invoice.id }}/approve" style="display:inline">
+        <form method="post" action="/invoices/{{ invoice.id }}/approve" class="form-inline">
           <button type="submit" class="btn-approve">Freigeben</button>
         </form>
       {% endif %}
       {% if invoice.status in ("new", "extracted", "reviewed", "approved") %}
-        <form method="post" action="/invoices/{{ invoice.id }}/reject" style="display:inline">
+        <form method="post" action="/invoices/{{ invoice.id }}/reject" class="form-inline">
           <button type="submit" class="btn-reject">Ablehnen</button>
         </form>
       {% endif %}
       {% if invoice.status == "rejected" %}
-        <form method="post" action="/invoices/{{ invoice.id }}/save" style="display:inline">
+        <form method="post" action="/invoices/{{ invoice.id }}/save" class="form-inline">
           <button type="submit">Zurück zur Prüfung</button>
         </form>
       {% endif %}
@@ -103,7 +103,7 @@
       {% if invoice.paid_at %}
         <p class="info">Bezahlt am {{ invoice.paid_at }}.</p>
       {% else %}
-        <form method="post" action="/invoices/{{ invoice.id }}/mark-paid" style="display:inline">
+        <form method="post" action="/invoices/{{ invoice.id }}/mark-paid" class="form-inline">
           <button type="submit" class="btn-approve">Als bezahlt markieren</button>
         </form>
       {% endif %}

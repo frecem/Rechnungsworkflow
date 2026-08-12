@@ -9,7 +9,13 @@ from app.database import get_db
 from app.models import WebauthnCredential
 from app.services import login_guard
 from app.services.auth import start_session
-from app.services.webauthn_service import begin_authentication, begin_registration, complete_authentication, complete_registration, delete_credential
+from app.services.webauthn_service import (
+    begin_authentication,
+    begin_registration,
+    complete_authentication,
+    complete_registration,
+    delete_credential,
+)
 
 router = APIRouter(prefix="/webauthn")
 logger = logging.getLogger(__name__)

@@ -8,7 +8,12 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models import AppSettings, Invoice
-from app.services.reminders import due_invoices_for_reminder, run_reminder_check, run_unprocessed_check, unprocessed_invoices
+from app.services.reminders import (
+    due_invoices_for_reminder,
+    run_reminder_check,
+    run_unprocessed_check,
+    unprocessed_invoices,
+)
 
 
 @pytest.fixture
@@ -87,15 +92,15 @@ def test_due_invoices_excludes_no_due_date(db):
 
 
 def _settings(db, **overrides):
-    defaults = dict(
-        id=1,
-        smtp_host="smtp.example.invalid",
-        smtp_user="me@example.invalid",
-        smtp_password="secret",
-        reminder_email="reminders@example.invalid",
-        reminder_days_before=3,
-        last_backup_at=datetime.utcnow(),
-    )
+    defaults = {
+        "id": 1,
+        "smtp_host": "smtp.example.invalid",
+        "smtp_user": "me@example.invalid",
+        "smtp_password": "secret",
+        "reminder_email": "reminders@example.invalid",
+        "reminder_days_before": 3,
+        "last_backup_at": datetime.utcnow(),
+    }
     defaults.update(overrides)
     settings = AppSettings(**defaults)
     db.add(settings)

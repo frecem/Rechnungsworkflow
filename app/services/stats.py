@@ -45,7 +45,11 @@ def available_years(invoices: list[Invoice]) -> list[int]:
 
 
 def compute_yearly_stats(invoices: list[Invoice], year: int, category: str | None = None) -> YearlyStats:
-    relevant = [inv for inv in invoices if inv.status != "rejected" and inv.invoice_date and inv.invoice_date.year == year]
+    relevant = [
+        inv
+        for inv in invoices
+        if inv.status != "rejected" and inv.invoice_date and inv.invoice_date.year == year
+    ]
     if category:
         relevant = [inv for inv in relevant if (inv.category or NO_CATEGORY_LABEL) == category]
 
@@ -61,7 +65,10 @@ def compute_yearly_stats(invoices: list[Invoice], year: int, category: str | Non
         category_counts[label] += 1
 
     by_category = sorted(
-        (GroupTotal(label=label, total=total, count=category_counts[label]) for label, total in category_totals.items()),
+        (
+            GroupTotal(label=label, total=total, count=category_counts[label])
+            for label, total in category_totals.items()
+        ),
         key=lambda g: g.total,
         reverse=True,
     )

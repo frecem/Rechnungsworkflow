@@ -18,7 +18,7 @@
     {% elif error %}
       <p class="warning">{{ error }}</p>
     {% endif %}
-    <p id="passkey-error" class="warning" style="display:none"></p>
+    <p id="passkey-error" class="warning is-hidden"></p>
     <form method="post" action="/login" class="auth-form">
       <label>Benutzername
         <input type="text" name="username" placeholder="admin" autocomplete="username" required autofocus>
@@ -33,30 +33,11 @@
       <button type="submit">Anmelden</button>
     </form>
     {% if has_passkeys %}
-      <button type="button" id="passkey-login-btn" style="width:100%; margin-top:0.75rem;">Mit Passkey anmelden</button>
+      <button type="button" id="passkey-login-btn" class="btn-block">Mit Passkey anmelden</button>
     {% endif %}
     <p class="hint"><a href="/forgot-password">Passwort vergessen?</a></p>
   </main>
   <script src="/static/webauthn.js"></script>
-  <script>
-    const passkeyBtn = document.getElementById("passkey-login-btn");
-    if (passkeyBtn) {
-      if (!window.PublicKeyCredential) {
-        passkeyBtn.style.display = "none";
-      } else {
-        passkeyBtn.addEventListener("click", async () => {
-          const errorEl = document.getElementById("passkey-error");
-          errorEl.style.display = "none";
-          try {
-            await loginWithPasskey();
-            window.location.href = "/";
-          } catch (err) {
-            errorEl.textContent = err.message || "Passkey-Anmeldung fehlgeschlagen.";
-            errorEl.style.display = "block";
-          }
-        });
-      }
-    }
-  </script>
+  <script src="/static/passkey-ui.js"></script>
 </body>
 </html>

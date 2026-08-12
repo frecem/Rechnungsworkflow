@@ -6,6 +6,7 @@ sync_state-Tabelle) und speist gefundene PDF-/Bild-Anhaenge in dieselbe
 Ingest-Pipeline wie der manuelle Upload ein.
 """
 
+import contextlib
 import email
 import imaplib
 import logging
@@ -20,10 +21,14 @@ from app.models import SyncState
 from app.services.ingest import ingest_document
 from app.services.settings_service import get_settings
 from app.services.smtp_client import send_email
+from app.services.storage import ALLOWED_MIME_TYPES
 
 logger = logging.getLogger(__name__)
 
-ALLOWED_CONTENT_TYPES = {"application/pdf", "image/jpeg", "image/png"}
+# Frueher Filter beim Durchgehen der Mail-Anhaenge, damit irrelevante Teile
+# (Signaturbilder, HTML-Body) gar nicht erst heruntergeladen und geOCRt werden.
+# Die verbindliche Pruefung sitzt in ingest_document().
+ALLOWED_CONTENT_TYPES = ALLOWED_MIME_TYPES
 
 IMAP_FAILURE_ALERT_THRESHOLD = 3
 
@@ -44,10 +49,8 @@ def test_connection(host: str, port: int, user: str, password: str, mailbox: str
             count = int(data[0]) if data and data[0] else 0
             return True, f"Verbindung erfolgreich, {count} Nachricht(en) im Postfach '{mailbox}'."
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 imap.logout()
-            except Exception:
-                pass
     except (imaplib.IMAP4.error, OSError) as exc:
         return False, f"Verbindung fehlgeschlagen: {exc}"
 
@@ -137,10 +140,8 @@ def sync_new_invoices(db: Session) -> dict:
 
             highest_uid = max(highest_uid, uid)
     finally:
-        try:
+        with contextlib.suppress(Exception):
             imap.logout()
-        except Exception:
-            pass
 
     if highest_uid != sync_state.last_uid:
         sync_state.last_uid = highest_uid

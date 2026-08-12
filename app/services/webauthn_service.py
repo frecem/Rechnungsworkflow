@@ -16,7 +16,7 @@ from datetime import datetime
 import webauthn
 from fastapi import Request
 from sqlalchemy.orm import Session
-from webauthn.helpers.exceptions import InvalidRegistrationResponse, InvalidAuthenticationResponse
+from webauthn.helpers.exceptions import InvalidAuthenticationResponse, InvalidRegistrationResponse
 from webauthn.helpers.structs import PublicKeyCredentialDescriptor
 
 from app.models import WebauthnCredential

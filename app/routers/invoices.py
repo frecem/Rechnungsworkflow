@@ -90,10 +90,33 @@ def invoice_detail(request: Request, invoice_id: int, db: Session = Depends(get_
 
 @router.get("/invoices/{invoice_id}/file")
 def invoice_file(invoice_id: int, db: Session = Depends(get_db)):
+    """Liefert die Belegdatei fuer die Vorschau aus.
+
+    Der gespeicherte Content-Type wird nur uebernommen, wenn er in der Allowlist
+    steht - sonst application/octet-stream. Zusammen mit nosniff verhindert das,
+    dass ein Altbestand oder ein manipulierter Datensatz aktiven Inhalt (HTML/SVG)
+    im eigenen Origin ausfuehren laesst.
+    """
     invoice = _get_invoice_or_404(db, invoice_id)
-    content = storage.read_file(invoice.file_path)
-    media_type = invoice.file_mime_type or "application/octet-stream"
-    return Response(content=content, media_type=media_type)
+    try:
+        content = storage.read_file(invoice.file_path)
+    except storage.StoredFileMissing as exc:
+        raise HTTPException(status_code=404, detail="Belegdatei nicht gefunden") from exc
+
+    media_type = (
+        invoice.file_mime_type
+        if storage.is_allowed_mime_type(invoice.file_mime_type)
+        else "application/octet-stream"
+    )
+    safe_name = storage.safe_download_name(invoice.file_original_name or f"beleg_{invoice.id}")
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{safe_name}"',
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @router.post("/invoices/{invoice_id}/save")
@@ -128,7 +151,8 @@ def save_invoice(
     invoice.category = category or None
     invoice.notes = notes or None
     invoice.is_recurring = is_recurring
-    invoice.recurrence_interval_days = int(recurrence_interval_days) if recurrence_interval_days.strip().isdigit() else None
+    interval = recurrence_interval_days.strip()
+    invoice.recurrence_interval_days = int(interval) if interval.isdigit() else None
     db.commit()
 
     if invoice.status in ("extracted", "rejected"):

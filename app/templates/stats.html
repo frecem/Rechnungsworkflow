@@ -6,7 +6,7 @@
 <p class="print-only">Rechnungsworkflow – Jahres-Auswertung {{ selected_year }}{% if selected_category %}, Kategorie: {{ selected_category }}{% endif %} (Stand: {{ today }})</p>
 
 <form method="get" action="/stats" class="filter-bar no-print">
-  <select name="year" onchange="this.form.submit()">
+  <select name="year" data-autosubmit>
     {% for y in years %}
       <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
     {% endfor %}
@@ -14,7 +14,7 @@
       <option value="{{ selected_year }}" selected>{{ selected_year }}</option>
     {% endif %}
   </select>
-  <select name="category" onchange="this.form.submit()">
+  <select name="category" data-autosubmit>
     <option value="" {% if not selected_category %}selected{% endif %}>Alle Kategorien</option>
     {% for c in categories %}
       <option value="{{ c }}" {% if c == selected_category %}selected{% endif %}>{{ c }}</option>
@@ -22,7 +22,7 @@
     <option value="{{ no_category_label }}" {% if selected_category == no_category_label %}selected{% endif %}>{{ no_category_label }}</option>
   </select>
   <noscript><button type="submit">Anzeigen</button></noscript>
-  <button type="button" onclick="window.print()">Drucken / als PDF speichern</button>
+  <button type="button" data-print>Drucken / als PDF speichern</button>
 </form>
 
 {% if stats.invoice_count == 0 %}

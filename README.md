@@ -369,6 +369,44 @@ beim Login automatisch auf `admin` zurück – nach dem Update also `admin` +
 bestehendes Passwort eingeben, danach den Benutzernamen bei Bedarf unter
 Einstellungen anpassen.
 
+### Belege: Allowlist statt Blocklist
+
+Angenommen werden ausschließlich PDF- und Bild-Formate (siehe
+`storage.ALLOWED_MIME_TYPES`), **nicht** aber Formate mit ausführbarem Inhalt wie
+HTML oder SVG. Grund: Belege werden in der Detailansicht per `iframe`/`img` im
+selben Origin eingebettet – ein Dokument mit eingebettetem `<script>` könnte sonst
+im Kontext der eigenen Sitzung laufen und z.B. einen fremden Passkey registrieren.
+Die Prüfung sitzt zentral in `ingest_document()` und gilt damit automatisch für
+jeden Eingangsweg (Upload wie IMAP). Beim Ausliefern greifen zusätzlich
+`X-Content-Type-Options: nosniff` und ein auf die Allowlist begrenzter
+Content-Type, damit auch Altbestände nicht als aktiver Inhalt interpretiert werden.
+
+### Content-Security-Policy
+
+Die App liefert eine strikte CSP **ohne** `unsafe-inline` aus – möglich, weil
+sämtliches JavaScript in `static/*.js` liegt und alle Styles in `style.css`; im
+HTML gibt es weder `<script>`-Blöcke noch `onclick=`/`style=`-Attribute
+(Interaktionen laufen über `data-`-Attribute, siehe `static/app.js`). Ein
+eingeschleustes Skript würde damit gar nicht erst ausgeführt. Ergänzt um
+`nosniff`, `Referrer-Policy: no-referrer`, eine restriktive `Permissions-Policy`
+und `frame-ancestors 'self'` (Clickjacking-Schutz, erlaubt aber weiterhin die
+eigene Beleg-Vorschau im iframe).
+
+### CSV-Export
+
+Felder wie der Absendername stammen aus der OCR fremder Rechnungen. Zellen, die mit
+`=`, `+`, `-` oder `@` beginnen, bekommen beim Export ein führendes `'`, damit
+Excel/LibreOffice sie als Text und nicht als Formel auswertet (CSV-/Formel-Injection).
+
+### Bewusst offene Punkte
+
+- **Kein CSRF-Token.** Schutz beruht auf `SameSite=Lax` beim Session-Cookie, das
+  fremde Seiten daran hindert, Formulare mit gültigem Cookie abzuschicken. Für ein
+  privates Einzelnutzer-Tool ein vertretbarer Kompromiss; bei Bedarf nachrüstbar.
+- **Kein `Secure`-Flag am Cookie**, damit die App auch über reines HTTP hinter dem
+  Reverse Proxy erreichbar bleibt. Wer ausschließlich HTTPS nutzt, sollte in
+  `app/main.py` bei der `SessionMiddleware` `https_only=True` setzen.
+
 ## Tests
 
 ```bash
@@ -396,8 +434,19 @@ mit gemockter WebAuthn-Kryptoverifikation), die Unbearbeitete-Rechnungen-Erinner
 (korrekte Status-Filterung, Digest-Inhalt, kein Versand bei fehlender Konfiguration,
 Verhalten bei SMTP-Verbindungsfehlern) sowie die zielspezifischen Weiterleitungs-Mails
 (leerer Body an die Steuer-App, Betreff mit Absender + Workflow-Hinweis an
-Paperless-ngx) und die SMTP-Testmail-Funktion – ohne Abhängigkeit von
+Paperless-ngx) und die SMTP-Testmail-Funktion, die Datei-Allowlist (PDF/Bilder
+erlaubt, HTML/SVG/unbekannt abgelehnt, ohne dass etwas gespeichert wird), den
+Ausbruchsschutz beim Pfad-Auflösen, die saubere Fehlermeldung bei fehlender
+Belegdatei sowie die CSV-Formel-Entschärfung – ohne Abhängigkeit von
 Tesseract/Poppler oder einem echten Postfach, läuft daher überall.
+
+Zusätzlich sind Linting und Import-Reihenfolge über `ruff` festgelegt
+(Konfiguration in `pyproject.toml`, inklusive FastAPI-gerechter Ausnahme für
+`Depends()`/`Form()` in Default-Argumenten):
+
+```bash
+ruff check app/ scripts/ tests/
+```
 
 ## Manuelle Verifikation (bereits durchgeführt)
 
@@ -499,3 +548,48 @@ bleibt im Formular erhalten); der manuelle Unbearbeitete-Rechnungen-Check läuft
 Fehlermeldung ab statt mit unbehandelter Exception. Die unterschiedlichen
 Mail-Inhalte pro Ziel (leerer Body an Steuer, Betreff mit Absender + Workflow-Hinweis
 an Paperless-ngx) sind zusätzlich per Unit-Test auf den exakten Inhalt geprüft.
+
+## Code- und Sicherheitsprüfung (durchgeführt)
+
+Alle Routen wurden live gegen einen laufenden Server geprüft – unauthentifiziert
+(jede geschützte Route leitet auf `/login` um, öffentlich sind nur Login,
+Passwort-vergessen/-zurücksetzen und die beiden Passkey-Login-Endpunkte),
+authentifiziert (kein einziger 500er über alle GET-Seiten, Upload-, Rechnungs-,
+Board-, Einstellungs- und Export-Routen) sowie auf tote Links (jedes `href`/`action`
+aus allen Templates aufgelöst – keine 404). Die Oberfläche wurde zusätzlich per
+Playwright auf CSP-Verstöße und JavaScript-Fehler geprüft, inklusive der
+interaktiven Elemente (Zeilen-Klick, Auto-Submit in der Auswertung,
+Bestätigungsdialoge, Board-Dropdown, Beleg-Vorschau) und des kompletten
+Passkey-Flows gegen einen virtuellen WebAuthn-Authenticator.
+
+Dabei gefunden und behoben:
+
+1. **Stored XSS über den Upload (schwerwiegend).** Der Upload nahm jeden Dateityp an
+   und `/invoices/<id>/file` lieferte ihn mit dem gespeicherten Content-Type wieder
+   aus. Eine hochgeladene HTML- oder SVG-Datei wurde damit als aktiver Inhalt im
+   eigenen Origin ausgeführt – live reproduziert (`alert(document.domain)` lief).
+   Da die Vorschau im selben Origin eingebettet ist, hätte ein solches Skript u.a.
+   einen fremden Passkey registrieren und damit dauerhaften Zugang schaffen können.
+   Auffällig war die Inkonsistenz: der IMAP-Weg filterte bereits per Allowlist, der
+   Upload nicht. Behoben durch eine zentrale Allowlist in `ingest_document()` (gilt
+   damit für alle Eingangswege) plus gehärtete Auslieferung.
+2. **CSV-/Formel-Injection im Export.** Ein aus einer fremden Rechnung geOCRter
+   Absendername wie `=cmd|' /C calc'!A1` landete unverändert im CSV und wäre beim
+   Öffnen in Excel als Formel ausgewertet worden.
+3. **HTTP 500 statt 404 bei fehlender Belegdatei.** Trat realistisch nach einem
+   unvollständig wiederhergestellten Backup auf (DB zurückgespielt, `storage/`
+   nicht).
+4. **Fehlende Security-Header.** Es gab weder CSP noch `nosniff`, `Referrer-Policy`
+   oder `Permissions-Policy`.
+5. **Kein Ausbruchsschutz beim Pfad-Auflösen.** `read_file()` hängte den
+   DB-Pfad ungeprüft an das Storage-Verzeichnis an – als Absicherung in der Tiefe
+   jetzt auf das Storage-Verzeichnis begrenzt.
+6. **Unbegrenzter Mailversand über `/forgot-password`.** Der Endpunkt ist
+   notwendigerweise ohne Login erreichbar; wiederholtes Absenden verschickte
+   beliebig viele Mails. Jetzt mit 5-Minuten-Cooldown.
+
+Beim Absichern per CSP fielen zwei weitere Punkte auf, die der Browser-Test
+aufdeckte: `frame-ancestors 'none'` hätte die **eigene** Beleg-Vorschau blockiert
+(jetzt `'self'`), und **htmx war zwar eingebunden, wurde aber nirgends verwendet**
+(kein einziges `hx-*`-Attribut) – es injizierte lediglich ein Inline-`<style>`,
+das die CSP verletzte. Die 50 KB wurden ersatzlos entfernt.

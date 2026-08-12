@@ -31,13 +31,13 @@ def db():
 
 
 def _settings(db, **overrides):
-    defaults = dict(
-        id=1,
-        smtp_host="smtp.example.invalid",
-        smtp_user="me@example.invalid",
-        smtp_password="secret",
-        reminder_email="reminders@example.invalid",
-    )
+    defaults = {
+        "id": 1,
+        "smtp_host": "smtp.example.invalid",
+        "smtp_user": "me@example.invalid",
+        "smtp_password": "secret",
+        "reminder_email": "reminders@example.invalid",
+    }
     defaults.update(overrides)
     settings = AppSettings(**defaults)
     db.add(settings)

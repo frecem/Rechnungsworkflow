@@ -39,7 +39,7 @@
   </thead>
   <tbody>
     {% for invoice in invoices %}
-    <tr onclick="window.location='/invoices/{{ invoice.id }}'">
+    <tr data-href="/invoices/{{ invoice.id }}">
       <td>{{ invoice.invoice_date or "–" }}</td>
       <td>{{ invoice.sender_name or "–" }}</td>
       <td>{{ invoice.invoice_number or "–" }}</td>

@@ -4,6 +4,12 @@ from collections.abc import Iterable
 
 from app.models import Invoice
 
+# Zeichen, mit denen Excel/LibreOffice eine Zelle als Formel interpretieren.
+# Betroffene Felder (z.B. sender_name) stammen aus der OCR fremder Rechnungen und
+# sind damit von aussen beeinflussbar - ohne Entschaerfung koennte eine praeparierte
+# Rechnung beim Oeffnen des Exports Code ausfuehren (CSV-/Formel-Injection).
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
 CSV_COLUMNS = [
     "id",
     "invoice_date",
@@ -37,21 +43,33 @@ def build_csv(invoices: Iterable[Invoice]) -> str:
             [
                 invoice.id,
                 invoice.invoice_date.isoformat() if invoice.invoice_date else "",
-                invoice.sender_name or "",
-                invoice.invoice_number or "",
+                _escape_formula(invoice.sender_name),
+                _escape_formula(invoice.invoice_number),
                 _fmt_decimal(invoice.amount_net),
                 _fmt_decimal(invoice.vat_amount),
                 _fmt_decimal(invoice.vat_rate),
                 _fmt_decimal(invoice.amount_gross),
-                invoice.currency,
-                invoice.category or "",
+                _escape_formula(invoice.currency),
+                _escape_formula(invoice.category),
                 invoice.status,
                 invoice.source_type,
-                invoice.file_path,
+                _escape_formula(invoice.file_path),
             ]
         )
 
     return buffer.getvalue()
+
+
+def _escape_formula(value: str | None) -> str:
+    """Stellt einer als Formel interpretierbaren Zelle ein ' voran (Excel-Konvention).
+
+    Der Text bleibt dabei unveraendert lesbar, wird aber garantiert als Text und
+    nicht als Formel ausgewertet.
+    """
+    text = value or ""
+    if text.startswith(_FORMULA_PREFIXES):
+        return "'" + text
+    return text
 
 
 def _fmt_decimal(value) -> str:

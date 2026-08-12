@@ -19,6 +19,12 @@ from app.services.smtp_client import SmtpNotConfigured, send_email
 
 RESET_TOKEN_TTL_MINUTES = 30
 
+# /forgot-password ist notwendigerweise ohne Login erreichbar. Ohne Bremse koennte
+# jeder, der die Adresse kennt, durch wiederholtes Absenden beliebig viele Mails an
+# das Postfach des Besitzers ausloesen. Innerhalb dieses Fensters wird daher kein
+# zweiter Link verschickt - der bereits zugestellte bleibt gueltig.
+RESEND_COOLDOWN_MINUTES = 5
+
 logger = logging.getLogger(__name__)
 
 
@@ -47,7 +53,16 @@ def request_reset(db: Session, reset_url_base: str) -> tuple[bool, str]:
         and settings.password_reset_token_expires_at
         and settings.password_reset_token_expires_at > now
     )
-    if not token_valid:
+    if token_valid:
+        # Kein eigenes "zuletzt versendet"-Feld noetig: der Erstellzeitpunkt laesst
+        # sich aus dem Ablauf minus fester Laufzeit zurueckrechnen.
+        issued_at = settings.password_reset_token_expires_at - timedelta(minutes=RESET_TOKEN_TTL_MINUTES)
+        if now - issued_at < timedelta(minutes=RESEND_COOLDOWN_MINUTES):
+            return True, (
+                f"Es wurde bereits ein Link an {settings.reminder_email} geschickt. "
+                f"Bitte zuerst das Postfach prüfen (der Link ist {RESET_TOKEN_TTL_MINUTES} Minuten gültig)."
+            )
+    else:
         settings.password_reset_token = secrets.token_urlsafe(32)
         settings.password_reset_token_expires_at = now + timedelta(minutes=RESET_TOKEN_TTL_MINUTES)
         db.commit()
@@ -79,9 +94,8 @@ def validate_token(db: Session, token: str) -> bool:
         return False
     if not secrets.compare_digest(settings.password_reset_token, token):
         return False
-    if not settings.password_reset_token_expires_at or settings.password_reset_token_expires_at <= datetime.utcnow():
-        return False
-    return True
+    expires_at = settings.password_reset_token_expires_at
+    return expires_at is not None and expires_at > datetime.utcnow()
 
 
 def complete_reset(db: Session, token: str, new_password: str) -> bool:

@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 
 from app.models import Invoice
@@ -6,18 +6,18 @@ from app.services.stats import NO_CATEGORY_LABEL, available_years, compute_yearl
 
 
 def _invoice(**overrides):
-    defaults = dict(
-        source_type="upload",
-        file_path="x",
-        file_hash_sha256=overrides.pop("hash", "h"),
-        status="approved",
-        invoice_date=date(2026, 1, 1),
-        amount_gross=Decimal("100.00"),
-        amount_net=Decimal("84.03"),
-        vat_amount=Decimal("15.97"),
-        currency="EUR",
-        category="Büro",
-    )
+    defaults = {
+        "source_type": "upload",
+        "file_path": "x",
+        "file_hash_sha256": overrides.pop("hash", "h"),
+        "status": "approved",
+        "invoice_date": date(2026, 1, 1),
+        "amount_gross": Decimal("100.00"),
+        "amount_net": Decimal("84.03"),
+        "vat_amount": Decimal("15.97"),
+        "currency": "EUR",
+        "category": "Büro",
+    }
     defaults.update(overrides)
     return Invoice(**defaults)
 

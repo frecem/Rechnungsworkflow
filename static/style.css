@@ -405,6 +405,12 @@ button:active, input[type="submit"]:active {
   color: var(--muted);
 }
 
+/* Hilfsklassen anstelle von style="..."-Attributen im HTML - noetig, damit die
+   Content-Security-Policy ohne 'unsafe-inline' fuer Styles auskommt. */
+.form-inline { display: inline; }
+.is-hidden { display: none; }
+.btn-block { width: 100%; margin-top: 0.75rem; }
+
 .board-header {
   display: flex;
   justify-content: space-between;

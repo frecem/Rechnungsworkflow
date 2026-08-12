@@ -17,7 +17,17 @@ def ingest_document(
 
     Gibt (invoice, is_new) zurueck. Bei einem bereits bekannten Dokument (gleicher
     Datei-Hash) wird der bestehende Datensatz zurueckgegeben und is_new=False gesetzt.
+
+    Wirft storage.UnsupportedFileType, wenn der Dateityp nicht in der Allowlist steht.
+    Die Pruefung sitzt bewusst hier und nicht in den Aufrufern: so ist sie fuer jeden
+    Eingangsweg (Upload wie IMAP) automatisch aktiv, auch fuer spaeter ergaenzte.
     """
+    if not storage.is_allowed_mime_type(mime_type):
+        raise storage.UnsupportedFileType(
+            f"Dateityp '{mime_type or 'unbekannt'}' wird nicht unterstützt "
+            f"(erlaubt: PDF und Bilddateien)."
+        )
+
     relative_path, file_hash = storage.save_file(content, original_filename)
 
     existing = db.query(Invoice).filter_by(file_hash_sha256=file_hash).first()
