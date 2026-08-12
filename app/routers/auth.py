@@ -4,12 +4,15 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models import WebauthnCredential
 from app.services import login_guard, password_reset
-from app.services.auth import hash_password, verify_password
+from app.services.auth import hash_password, start_session, verify_password
 from app.services.settings_service import get_settings
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+
+DEFAULT_USERNAME = "admin"
 
 
 @router.get("/setup")
@@ -23,6 +26,7 @@ def setup_form(request: Request, db: Session = Depends(get_db)):
 @router.post("/setup")
 def setup_submit(
     request: Request,
+    username: str = Form(DEFAULT_USERNAME),
     password: str = Form(...),
     password_confirm: str = Form(...),
     db: Session = Depends(get_db),
@@ -39,10 +43,11 @@ def setup_submit(
             status_code=400,
         )
 
+    settings.admin_username = username.strip() or DEFAULT_USERNAME
     settings.admin_password_hash = hash_password(password)
     db.commit()
 
-    request.session["authenticated"] = True
+    start_session(request, remember=True)
     return RedirectResponse("/", status_code=303)
 
 
@@ -53,11 +58,20 @@ def login_form(request: Request, reset: str = "", db: Session = Depends(get_db))
         return RedirectResponse("/setup", status_code=303)
     if request.session.get("authenticated"):
         return RedirectResponse("/", status_code=303)
-    return templates.TemplateResponse(request, "login.html", {"password_reset_done": bool(reset)})
+    has_passkeys = db.query(WebauthnCredential).count() > 0
+    return templates.TemplateResponse(
+        request, "login.html", {"password_reset_done": bool(reset), "has_passkeys": has_passkeys}
+    )
 
 
 @router.post("/login")
-def login_submit(request: Request, password: str = Form(...), db: Session = Depends(get_db)):
+def login_submit(
+    request: Request,
+    username: str = Form(""),
+    password: str = Form(...),
+    remember: str = Form(""),
+    db: Session = Depends(get_db),
+):
     if login_guard.is_locked():
         return templates.TemplateResponse(
             request,
@@ -67,14 +81,16 @@ def login_submit(request: Request, password: str = Form(...), db: Session = Depe
         )
 
     settings = get_settings(db)
-    if not settings.password_set or not verify_password(password, settings.admin_password_hash):
+    expected_username = (settings.admin_username or DEFAULT_USERNAME).strip().lower()
+    username_ok = username.strip().lower() == expected_username
+    if not settings.password_set or not username_ok or not verify_password(password, settings.admin_password_hash):
         login_guard.register_failure()
         return templates.TemplateResponse(
-            request, "login.html", {"error": "Falsches Passwort."}, status_code=400
+            request, "login.html", {"error": "Benutzername oder Passwort falsch."}, status_code=400
         )
 
     login_guard.register_success()
-    request.session["authenticated"] = True
+    start_session(request, remember=bool(remember))
     return RedirectResponse("/", status_code=303)
 
 

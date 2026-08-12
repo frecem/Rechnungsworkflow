@@ -9,12 +9,20 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings as bootstrap_settings
 from app.database import SessionLocal
-from app.routers import auth, board, email_sync, export, invoices, settings, stats, upload
+from app.routers import auth, board, email_sync, export, invoices, settings, stats, upload, webauthn
+from app.services.auth import SESSION_REMEMBER_DAYS, session_is_valid
 from app.services.imap_client import sync_new_invoices_standalone
 from app.services.reminders import run_reminder_check_standalone
 from app.services.settings_service import get_settings
 
-PUBLIC_PATHS = {"/login", "/setup", "/forgot-password", "/reset-password"}
+PUBLIC_PATHS = {
+    "/login",
+    "/setup",
+    "/forgot-password",
+    "/reset-password",
+    "/webauthn/login/options",
+    "/webauthn/login/verify",
+}
 DEFAULT_SESSION_SECRET_KEY = "change-me-please-a-long-random-string"
 
 logger = logging.getLogger(__name__)
@@ -64,6 +72,7 @@ app.include_router(upload.router)
 app.include_router(email_sync.router)
 app.include_router(export.router)
 app.include_router(stats.router)
+app.include_router(webauthn.router)
 
 
 @app.middleware("http")
@@ -86,7 +95,7 @@ async def require_login(request: Request, call_next):
     if path in PUBLIC_PATHS:
         return await call_next(request)
 
-    if not request.session.get("authenticated"):
+    if not session_is_valid(request):
         return RedirectResponse("/login", status_code=303)
 
     return await call_next(request)
@@ -100,7 +109,16 @@ async def require_login(request: Request, call_next):
 # https_only is intentionally left at its default (False): a reverse proxy in front
 # of this app terminates TLS, and the app itself must stay reachable via plain HTTP
 # and HTTPS through that proxy - a secure-only cookie would break the HTTP path.
-app.add_middleware(SessionMiddleware, secret_key=bootstrap_settings.session_secret_key, same_site="lax")
+#
+# max_age is the outer cookie lifetime ceiling ("Angemeldet bleiben" duration); the
+# actual per-login expiry (short vs. remembered) is enforced separately in
+# app.services.auth.session_is_valid via a timestamp stored inside the session itself.
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=bootstrap_settings.session_secret_key,
+    same_site="lax",
+    max_age=SESSION_REMEMBER_DAYS * 24 * 60 * 60,
+)
 
 
 @app.get("/")

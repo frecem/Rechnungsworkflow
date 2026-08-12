@@ -138,19 +138,91 @@
 {% endif %}
 <a href="/settings/backup"><button type="button">Backup herunterladen</button></a>
 
-<h2>Passwort ändern</h2>
+<h2>Zugangsdaten ändern</h2>
+<p class="hint">Benutzername und/oder Passwort ändern – jeweils leer lassen, um es beizubehalten.</p>
 {% if password_error %}<p class="warning">{{ password_error }}</p>{% endif %}
-{% if password_saved %}<p class="info">Passwort geändert.</p>{% endif %}
+{% if password_saved %}<p class="info">Gespeichert.</p>{% endif %}
 <form method="post" action="/settings/password" class="settings-form">
   <label>Aktuelles Passwort
-    <input type="password" name="current_password" required>
+    <input type="password" name="current_password" autocomplete="current-password" required>
+  </label>
+  <label>Neuer Benutzername <span class="hint">(aktuell: {{ settings.admin_username or "admin" }})</span>
+    <input type="text" name="new_username" autocomplete="username">
   </label>
   <label>Neues Passwort
-    <input type="password" name="new_password" minlength="8" required>
+    <input type="password" name="new_password" autocomplete="new-password" minlength="8">
   </label>
   <label>Neues Passwort bestätigen
-    <input type="password" name="new_password_confirm" minlength="8" required>
+    <input type="password" name="new_password_confirm" minlength="8">
   </label>
-  <button type="submit">Passwort ändern</button>
+  <button type="submit">Speichern</button>
 </form>
+
+<h2>Passkeys</h2>
+<p>Anmeldung per Geräte-PIN/Fingerabdruck/Gesichtserkennung statt Passwort, zusätzlich
+  zum bestehenden Login. Erfordert Zugriff auf die App über HTTPS.</p>
+<div id="passkey-message"></div>
+{% if passkeys %}
+<div class="table-scroll">
+<table class="invoice-table">
+  <thead>
+    <tr><th>Bezeichnung</th><th>Hinzugefügt</th><th>Zuletzt genutzt</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for pk in passkeys %}
+    <tr>
+      <td>{{ pk.label or "Passkey #" ~ pk.id }}</td>
+      <td>{{ pk.created_at.strftime("%d.%m.%Y") }}</td>
+      <td>{{ pk.last_used_at.strftime("%d.%m.%Y %H:%M") if pk.last_used_at else "–" }}</td>
+      <td>
+        <form method="post" action="/webauthn/credentials/{{ pk.id }}/delete" class="inline-form" data-passkey-delete>
+          <button type="submit" class="btn-reject">Entfernen</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p>Noch kein Passkey registriert.</p>
+{% endif %}
+
+<form class="inline-form" id="passkey-register-form" onsubmit="return false;">
+  <input type="text" id="passkey-label" placeholder="Bezeichnung, z.B. Laptop">
+  <button type="button" id="passkey-register-btn">Passkey auf diesem Gerät hinzufügen</button>
+</form>
+
+<script src="/static/webauthn.js"></script>
+<script>
+  const passkeyMessage = document.getElementById("passkey-message");
+  function showPasskeyMessage(text, ok) {
+    passkeyMessage.innerHTML = `<p class="${ok ? "info" : "warning"}">${text}</p>`;
+  }
+
+  const registerBtn = document.getElementById("passkey-register-btn");
+  if (!window.PublicKeyCredential) {
+    registerBtn.disabled = true;
+    showPasskeyMessage("Dieser Browser unterstützt keine Passkeys.", false);
+  } else {
+    registerBtn.addEventListener("click", async () => {
+      const label = document.getElementById("passkey-label").value;
+      try {
+        await registerPasskey(label);
+        window.location.reload();
+      } catch (err) {
+        showPasskeyMessage(err.message || "Registrierung fehlgeschlagen.", false);
+      }
+    });
+  }
+
+  document.querySelectorAll("[data-passkey-delete]").forEach((form) => {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!confirm("Diesen Passkey entfernen?")) return;
+      await fetch(form.action, { method: "POST" });
+      window.location.reload();
+    });
+  });
+</script>
 {% endblock %}

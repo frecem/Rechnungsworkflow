@@ -13,8 +13,11 @@
     <p>Lege ein Passwort fest, um die App zu schützen (deine Rechnungen enthalten private Finanzdaten).</p>
     {% if error %}<p class="warning">{{ error }}</p>{% endif %}
     <form method="post" action="/setup" class="auth-form">
+      <label>Benutzername
+        <input type="text" name="username" value="admin" autocomplete="username" required autofocus>
+      </label>
       <label>Passwort
-        <input type="password" name="password" minlength="8" required autofocus>
+        <input type="password" name="password" autocomplete="new-password" minlength="8" required>
       </label>
       <label>Passwort bestätigen
         <input type="password" name="password_confirm" minlength="8" required>

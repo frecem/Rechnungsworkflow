@@ -6,7 +6,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import FORWARD_TARGETS, AppSettings
+from app.models import FORWARD_TARGETS, AppSettings, WebauthnCredential
 from app.services import imap_client, smtp_client
 from app.services.auth import hash_password, verify_password
 from app.services.backup import backup_filename, build_backup_zip, is_backup_overdue
@@ -17,11 +17,14 @@ router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
 
-def _settings_response(request: Request, settings: AppSettings, extra: dict | None = None, status_code: int = 200):
+def _settings_response(
+    request: Request, db: Session, settings: AppSettings, extra: dict | None = None, status_code: int = 200
+):
     context = {
         "settings": settings,
         "forward_targets": FORWARD_TARGETS,
         "backup_overdue": is_backup_overdue(settings),
+        "passkeys": db.query(WebauthnCredential).order_by(WebauthnCredential.created_at).all(),
     }
     context.update(extra or {})
     return templates.TemplateResponse(request, "settings.html", context, status_code=status_code)
@@ -30,7 +33,7 @@ def _settings_response(request: Request, settings: AppSettings, extra: dict | No
 @router.get("/settings")
 def settings_form(request: Request, db: Session = Depends(get_db)):
     settings = get_settings(db)
-    return _settings_response(request, settings)
+    return _settings_response(request, db, settings)
 
 
 @router.post("/settings")
@@ -79,7 +82,7 @@ def settings_save(
 
     db.commit()
 
-    return _settings_response(request, settings, {"saved": True})
+    return _settings_response(request, db, settings, {"saved": True})
 
 
 @router.post("/settings/test-imap")
@@ -108,7 +111,7 @@ def test_imap(
     settings.imap_user = imap_user or None
     settings.imap_mailbox = imap_mailbox or "INBOX"
 
-    return _settings_response(request, settings, {"imap_test_result": imap_test_result})
+    return _settings_response(request, db, settings, {"imap_test_result": imap_test_result})
 
 
 @router.post("/settings/test-smtp")
@@ -132,7 +135,7 @@ def test_smtp(
     settings.smtp_port = smtp_port
     settings.smtp_user = smtp_user or None
 
-    return _settings_response(request, settings, {"smtp_test_result": smtp_test_result})
+    return _settings_response(request, db, settings, {"smtp_test_result": smtp_test_result})
 
 
 @router.post("/settings/categories")
@@ -157,7 +160,7 @@ def delete_category_route(name: str = Form(...), db: Session = Depends(get_db)):
 def check_reminders_now(request: Request, db: Session = Depends(get_db)):
     settings = get_settings(db)
     count = run_reminder_check(db)
-    return _settings_response(request, settings, {"reminder_check_result": count})
+    return _settings_response(request, db, settings, {"reminder_check_result": count})
 
 
 @router.get("/settings/backup")
@@ -179,8 +182,9 @@ def download_backup(db: Session = Depends(get_db)):
 def change_password(
     request: Request,
     current_password: str = Form(...),
-    new_password: str = Form(...),
-    new_password_confirm: str = Form(...),
+    new_username: str = Form(""),
+    new_password: str = Form(""),
+    new_password_confirm: str = Form(""),
     db: Session = Depends(get_db),
 ):
     settings = get_settings(db)
@@ -188,13 +192,18 @@ def change_password(
     error = None
     if not verify_password(current_password, settings.admin_password_hash):
         error = "Aktuelles Passwort ist falsch."
-    elif len(new_password) < 8 or new_password != new_password_confirm:
+    elif new_password and (len(new_password) < 8 or new_password != new_password_confirm):
         error = "Neues Passwort muss mind. 8 Zeichen lang sein und mit der Bestätigung übereinstimmen."
+    elif not new_password and not new_username.strip():
+        error = "Bitte neuen Benutzernamen und/oder neues Passwort angeben."
 
     if error:
-        return _settings_response(request, settings, {"password_error": error}, status_code=400)
+        return _settings_response(request, db, settings, {"password_error": error}, status_code=400)
 
-    settings.admin_password_hash = hash_password(new_password)
+    if new_username.strip():
+        settings.admin_username = new_username.strip()
+    if new_password:
+        settings.admin_password_hash = hash_password(new_password)
     db.commit()
 
-    return _settings_response(request, settings, {"password_saved": True})
+    return _settings_response(request, db, settings, {"password_saved": True})

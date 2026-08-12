@@ -111,6 +111,7 @@ class AppSettings(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
+    admin_username: Mapped[str | None]
     admin_password_hash: Mapped[str | None]
 
     imap_host: Mapped[str | None]
@@ -157,3 +158,22 @@ class AppSettings(Base):
     @property
     def password_set(self) -> bool:
         return bool(self.admin_password_hash)
+
+
+class WebauthnCredential(Base):
+    """Ein registrierter Passkey (FIDO2/WebAuthn) fuer den einzigen Account.
+
+    Kein user_id-FK noetig, da es nur einen Account gibt - jede Zeile steht fuer
+    ein Geraet/einen Authenticator (z.B. "iPhone", "YubiKey"), ueber das man sich
+    zusaetzlich zum Passwort anmelden kann.
+    """
+
+    __tablename__ = "webauthn_credentials"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    credential_id: Mapped[str] = mapped_column(unique=True)  # base64url
+    public_key: Mapped[str]  # base64url-kodierter COSE-Public-Key
+    sign_count: Mapped[int] = mapped_column(default=0)
+    label: Mapped[str | None]
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime)

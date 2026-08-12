@@ -250,6 +250,34 @@ python -m scripts.reset_password
 Fragt interaktiv (ohne Echo) nach dem neuen Passwort und setzt es direkt in der
 Datenbank, unabhängig von SMTP oder einem laufenden Reset-Link.
 
+## Login: Benutzername, "Angemeldet bleiben", Passkeys
+
+Der Login besteht aus Benutzername + Passwort (Benutzername lässt sich unter
+**Einstellungen → Zugangsdaten ändern** anpassen, Standard beim Ersteinrichten ist
+`admin`). Eine Checkbox **"Angemeldet bleiben auf diesem Gerät"** verlängert die
+Session von 12 Stunden auf 180 Tage – praktisch für ein privates Haupt-/Zweitgerät,
+ohne dass man sich bei jedem Öffnen neu anmelden muss; ohne Checkbox bleibt es beim
+kürzeren Standard, was auf einem geteilten/fremden Gerät sinnvoller ist.
+
+Zusätzlich lassen sich **Passkeys** (FIDO2/WebAuthn – Geräte-PIN, Fingerabdruck oder
+Gesichtserkennung) als weiterer Anmeldeweg registrieren, unter **Einstellungen →
+Passkeys**. Ein Passkey ersetzt das Passwort nicht, sondern ergänzt es – Passwort und
+CLI-Reset bleiben als Fallback bestehen, falls z.B. das Gerät mit dem Passkey nicht
+zur Hand ist. Beim Login erscheint automatisch ein "Mit Passkey anmelden"-Button,
+sobald mindestens ein Passkey registriert ist; da es nur einen Account gibt, muss dafür
+kein Benutzername eingegeben werden.
+
+Wichtige Einschränkungen von Passkeys (WebAuthn-Standard, keine App-Entscheidung):
+
+- **Erfordert HTTPS** (oder `localhost`) – über eine reine `http://`-Adresse mit
+  IP-Adresse funktionieren Passkeys nicht (der Browser lehnt das als "invalid domain"
+  ab). Siehe Reverse-Proxy-Abschnitt unten für den HTTPS-Zugriff.
+- Ein Passkey ist an den **Hostnamen** gebunden, unter dem er registriert wurde – bei
+  Zugriff über einen anderen Domainnamen/eine andere Subdomain muss er neu registriert
+  werden.
+- Passkey-Logins gelten immer als "Angemeldet bleiben" (180 Tage), da der Passkey
+  selbst bereits durch die Geräte-Sperre/Biometrie geschützt ist.
+
 ## Als App installieren (PWA)
 
 Die App liefert ein Web-App-Manifest samt Icons mit. Auf dem Smartphone/Tablet über
@@ -310,7 +338,14 @@ gemacht, zusätzlich eine Firewall-/IP-Beschränkung auf dem Proxy in Betracht z
 
 Der Login sperrt sich nach 5 falschen Passwortversuchen für 15 Minuten (global, nicht
 pro IP – In-Memory, geht bei einem Neustart der App verloren; für dieses private
-Einzelnutzer-Tool ein akzeptabler Kompromiss gegenüber einer dauerhaften Sperre).
+Einzelnutzer-Tool ein akzeptabler Kompromiss gegenüber einer dauerhaften Sperre). Die
+Sperre gilt gemeinsam für Passwort- und Passkey-Login.
+
+**Upgrade-Hinweis für bestehende Installationen:** Vor Einführung des Benutzernamens
+gab es nur ein Passwort. Bestandsinstallationen ohne gesetzten Benutzernamen fallen
+beim Login automatisch auf `admin` zurück – nach dem Update also `admin` +
+bestehendes Passwort eingeben, danach den Benutzernamen bei Bedarf unter
+Einstellungen anpassen.
 
 ## Tests
 
@@ -329,10 +364,14 @@ Gruppierung/Überfälligkeitserkennung wiederkehrender Zahlungen (inkl. "beendet
 das IMAP-Fehler-Alarm-Tracking (Zähler, einmaliger Alarm ab Schwellwert, Reset bei
 Erfolg), die Kategorie-Verwaltung (Anlegen/Umbenennen mit Kaskade auf bestehende
 Rechnungen/Löschen ohne Datenverlust), die IMAP-/SMTP-Verbindungstests (Erfolg,
-Auth-Fehler, Verbindungsfehler, jeweils gemockt), die Backup-Überfälligkeitserkennung
-sowie den Passwort-Reset (Token-Erzeugung/-Wiederverwendung/-Ablauf, Versandfehler,
-gültiger/ungültiger/abgelaufener Token beim Abschluss) – ohne Abhängigkeit von
-Tesseract/Poppler oder einem echten Postfach, läuft daher überall.
+Auth-Fehler, Verbindungsfehler, jeweils gemockt), die Backup-Überfälligkeitserkennung,
+den Passwort-Reset (Token-Erzeugung/-Wiederverwendung/-Ablauf, Versandfehler,
+gültiger/ungültiger/abgelaufener Token beim Abschluss), die Session-Logik für
+"Angemeldet bleiben" (kurze vs. lange Gültigkeit, Ablauf-Erkennung inkl. eines
+gefundenen Bugs mit `expires_at == 0`) sowie den Passkey-Service (Registrierung inkl.
+Ausschluss bereits registrierter Credentials, Login inkl. Sign-Count-Update, jeweils
+mit gemockter WebAuthn-Kryptoverifikation) – ohne Abhängigkeit von Tesseract/Poppler
+oder einem echten Postfach, läuft daher überall.
 
 ## Manuelle Verifikation (bereits durchgeführt)
 
@@ -403,3 +442,23 @@ Werte bleiben im Formular sichtbar, es wird nichts in die Datenbank geschrieben
 (direkt per SQLite-Abfrage nach dem Test verifiziert). SESSION_SECRET_KEY-Warnung
 live mit Platzhalter-Wert (Warnung im Log) und mit eigenem Wert (keine Warnung)
 gegengetestet.
+
+Benutzername/"Angemeldet bleiben"/Passkeys live end-to-end getestet: Login mit
+falschem Benutzernamen wird abgelehnt (auch bei korrektem Passwort), Session-Cookie
+enthält nach Login ohne Häkchen eine ~12h-, mit Häkchen eine ~180-Tage-Ablaufzeit
+(verifiziert durch Dekodieren des Cookie-Payloads). Passkey-Flow komplett über einen
+von Chromium per CDP bereitgestellten virtuellen Authenticator getestet (kein Zugriff
+auf echte Hardware nötig): Registrierung aus den Einstellungen heraus, Anzeige in der
+Passkey-Liste, danach Logout und erfolgreicher Login ausschließlich per Passkey ohne
+Passworteingabe, redirect zum Board.
+
+Bei diesem Test wurden zwei echte Bugs gefunden und behoben: (1) Die
+Passkey-Options-Endpunkte gaben das Ergebnis von `options_to_json()` (das bereits ein
+JSON-*String* ist) nochmal in `JSONResponse()` verpackt zurück und haben es damit
+doppelt kodiert – der Browser erhielt einen String statt eines Objekts und scheiterte
+mit "Cannot read properties of undefined". (2) `session_is_valid()` prüfte den
+Session-Ablauf mit `if expires_at and ...` statt `if expires_at is not None and ...`
+– bei einem (im echten Betrieb zwar unrealistischen, aber von einem Unit-Test
+aufgedeckten) Ablaufzeitpunkt von exakt `0` wertete Python das als "falsy" und
+übersprang die Ablaufprüfung komplett. Beide Stellen sind gefixt, Regressionstests
+ergänzt.
