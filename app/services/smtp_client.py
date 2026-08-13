@@ -75,7 +75,7 @@ def send_email(
             filename=attachment_filename or "anhang",
         )
 
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
+    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as server:
         server.starttls()
         server.login(settings.smtp_user, settings.smtp_password)
         server.send_message(msg)

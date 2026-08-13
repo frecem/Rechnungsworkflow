@@ -102,7 +102,7 @@ def sync_new_invoices(db: Session) -> dict:
     duplicates = 0
     highest_uid = sync_state.last_uid
 
-    imap = imaplib.IMAP4_SSL(settings.imap_host, settings.imap_port)
+    imap = imaplib.IMAP4_SSL(settings.imap_host, settings.imap_port, timeout=15)
     try:
         imap.login(settings.imap_user, settings.imap_app_password)
         imap.select(settings.imap_mailbox, readonly=True)
