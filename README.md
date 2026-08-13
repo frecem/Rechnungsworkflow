@@ -369,14 +369,21 @@ EOF
 Das ist die **App-eigene** `.env` (nur `SESSION_SECRET_KEY` nötig – alle anderen
 Zugangsdaten werden nach dem Start über die Weboberfläche gepflegt).
 
-Danach im Projektverzeichnis (neben `docker-compose.yml`) die **Compose-eigene**
-`.env` anlegen – das ist eine andere Datei mit demselben Namen, sie steuert nur die
-`${...}`-Platzhalter in `docker-compose.yml`:
+Danach im Projektverzeichnis (neben `docker-compose.yml`, **nicht** in `${DATA_PATH}`)
+die **Compose-eigene** `.env` anlegen – das ist eine andere Datei mit demselben
+Namen, sie steuert nur die `${...}`-Platzhalter in `docker-compose.yml`:
 
 ```bash
 cp docker-compose.env.example .env
-# DATA_PATH, APP_PORT, FORWARDED_ALLOW_IPS bei Bedarf anpassen
+# DATA_PATH, APP_PORT, FORWARDED_ALLOW_IPS, TZ bei Bedarf anpassen
 ```
+
+**Wichtig:** Die Datei muss exakt `.env` heißen. Wird sie z.B. als
+`docker-compose.env` abgelegt (naheliegend, weil die Vorlage `docker-compose.env.example`
+heißt), liest `docker compose` sie **nicht** automatisch ein – alle
+`${...}`-Platzhalter fallen dann auf ihre Defaults zurück bzw. bleiben leer
+(`${DATA_PATH}/storage` würde z.B. zu `/storage`). Mit `docker compose config`
+lässt sich vorab prüfen, welche Werte tatsächlich eingesetzt werden.
 
 ### 2. Starten
 

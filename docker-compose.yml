@@ -5,9 +5,13 @@ services:
     restart: unless-stopped
     environment:
       - FORWARDED_ALLOW_IPS=${FORWARDED_ALLOW_IPS:-*}
+      # Bestimmt die Zeitzone der taeglichen Erinnerungs-Cronjobs (07/08/09 Uhr,
+      # siehe app/main.py) - ohne TZ laeuft der Container in UTC und die Jobs
+      # feuern zur falschen Uhrzeit. Ersetzt das frueher genutzte Bind-Mounten
+      # von /etc/localtime+/etc/timezone (auf modernen Systemen deprecated,
+      # siehe https://github.com/moby/moby/issues/42102).
+      - TZ=${TZ:-Europe/Berlin}
     volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro
       # Ein Pfad fuer alles Persistente (DB + Belegdateien), analog zum
       # Nextcloud-DB-Bind-Mount - db.sqlite3 und storage/invoices/ landen beide
       # unterhalb von ${DATA_PATH}/storage.
