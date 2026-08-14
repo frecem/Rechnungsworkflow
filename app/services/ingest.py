@@ -40,9 +40,10 @@ def ingest_document(
     # ab - wird einer gefunden, sind seine Zahlungsdaten zuverlaessiger als das
     # Erraten per Texterkennung und werden direkt vorbefuellt (siehe girocode_form
     # in app/routers/invoices.py, das invoice.payment_* vor der Regex-Suche prueft).
-    # Der Girocode-Empfaengername und die Zahlungsreferenz sind ausserdem oft mit
-    # Absender/Rechnungsnummer identisch, also auch dort als Fallback nutzen, wenn
-    # die Texterkennung nichts gefunden hat.
+    # Der Girocode-Empfaengername, die Zahlungsreferenz und der Betrag sind
+    # ausserdem oft mit Absender/Rechnungsnummer/Bruttobetrag identisch und
+    # strukturiert kodiert, gehen also vor den geratenen Texterkennungs-Treffern
+    # (die Texterkennung fuellt nur, was der Girocode nicht hergibt).
     epc_payment = qr_scan.find_epc_payment_data(content, mime_type)
 
     invoice = Invoice(
@@ -53,10 +54,10 @@ def ingest_document(
         file_original_name=original_filename,
         file_mime_type=mime_type,
         file_hash_sha256=file_hash,
-        sender_name=fields.sender_name or (epc_payment["recipient_name"] if epc_payment else None),
-        invoice_number=fields.invoice_number or (epc_payment["reference"] if epc_payment else None),
+        sender_name=(epc_payment["recipient_name"] if epc_payment else None) or fields.sender_name,
+        invoice_number=(epc_payment["reference"] if epc_payment else None) or fields.invoice_number,
         invoice_date=fields.invoice_date,
-        amount_gross=fields.amount_gross or (epc_payment["amount"] if epc_payment else None),
+        amount_gross=(epc_payment["amount"] if epc_payment else None) or fields.amount_gross,
         amount_net=fields.amount_net,
         vat_amount=fields.vat_amount,
         vat_rate=fields.vat_rate,
