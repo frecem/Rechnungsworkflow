@@ -92,17 +92,28 @@
       </form>
     </div>
 
+    {% if invoice.status in ("approved", "forwarded") %}
+    <div class="forward-box">
+      <h3>Girocode</h3>
+      {% if invoice.girocode_sent_at %}
+        <p>Girocode gesendet am {{ invoice.girocode_sent_at }}.</p>
+      {% else %}
+        <p>Zahlungsdaten prüfen und einen QR-Code (Girocode) zum Bezahlen per E-Mail versenden.</p>
+        <a href="/invoices/{{ invoice.id }}/girocode"><button type="button">Girocode erstellen &amp; senden</button></a>
+      {% endif %}
+    </div>
+    {% endif %}
+
     {% if invoice.status == "approved" %}
     <div class="forward-box">
-      <h3>Girocode &amp; Weiterleitung</h3>
-      <p>Zahlungsdaten prüfen, Girocode erzeugen und die Rechnung an Steuer-App/Paperless-ngx weiterleiten.</p>
-      <a href="/invoices/{{ invoice.id }}/girocode"><button type="button">Girocode erstellen &amp; weiterleiten</button></a>
+      <h3>Weiterleiten</h3>
+      <p>Rechnung an Steuer-App und/oder Paperless-ngx weiterleiten.</p>
+      <a href="/invoices/{{ invoice.id }}/forward"><button type="button">Weiterleiten</button></a>
     </div>
     {% endif %}
 
     {% if invoice.status == "forwarded" %}
       <div class="forward-box">
-        {% if invoice.girocode_sent_at %}<p>Girocode gesendet am {{ invoice.girocode_sent_at }}.</p>{% endif %}
         <p>Weitergeleitet an <strong>{{ invoice.forwarded_to }}</strong> am {{ invoice.forwarded_at }}.</p>
       </div>
     {% endif %}

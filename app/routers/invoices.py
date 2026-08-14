@@ -231,7 +231,7 @@ def mark_invoice_paid(invoice_id: int, db: Session = Depends(get_db)):
 @router.get("/invoices/{invoice_id}/girocode")
 def girocode_form(request: Request, invoice_id: int, db: Session = Depends(get_db)):
     invoice = _get_invoice_or_404(db, invoice_id)
-    if invoice.status != "approved":
+    if invoice.status not in ("approved", "forwarded"):
         raise HTTPException(status_code=400, detail="Rechnung muss zuerst freigegeben werden")
 
     settings = get_settings(db)
@@ -252,11 +252,7 @@ def girocode_form(request: Request, invoice_id: int, db: Session = Depends(get_d
         {
             "invoice": invoice,
             "prefill": prefill,
-            "forward_targets": FORWARD_TARGETS,
-            "default_forward_target": settings.default_forward_target,
             "girocode_email": settings.girocode_email,
-            "steuer_email": settings.steuer_email,
-            "paperless_email": settings.paperless_email,
         },
     )
 
@@ -270,11 +266,15 @@ def girocode_submit(
     bic: str = Form(""),
     amount: str = Form(...),
     reference: str = Form(""),
-    forward_target: str = Form(...),
     db: Session = Depends(get_db),
 ):
+    """Erzeugt und versendet nur den Girocode - unabhaengig von der Weiterleitung
+
+    der Rechnung an Steuer-App/Paperless-ngx (siehe forward_submit weiter unten).
+    Beides war frueher ein einziger Schritt; das erzwang, bei jeder Girocode-
+    Erstellung sofort auch ueber das Weiterleitungsziel zu entscheiden."""
     invoice = _get_invoice_or_404(db, invoice_id)
-    if invoice.status != "approved":
+    if invoice.status not in ("approved", "forwarded"):
         raise HTTPException(status_code=400, detail="Rechnung muss zuerst freigegeben werden")
 
     settings = get_settings(db)
@@ -292,11 +292,7 @@ def girocode_submit(
                     "amount": amount,
                     "reference": reference,
                 },
-                "forward_targets": FORWARD_TARGETS,
-                "default_forward_target": forward_target,
                 "girocode_email": settings.girocode_email,
-                "steuer_email": settings.steuer_email,
-                "paperless_email": settings.paperless_email,
                 "error": message,
             },
             status_code=400,
@@ -305,22 +301,8 @@ def girocode_submit(
     parsed_amount = _parse_decimal(amount)
     if parsed_amount is None:
         return render_error("Betrag ist ungültig.")
-    if forward_target not in FORWARD_TARGETS:
-        return render_error("Ungültiges Weiterleitungsziel.")
     if not settings.girocode_email:
         return render_error("Keine Girocode-Empfänger-Adresse in den Einstellungen hinterlegt.")
-
-    # (Zielart, Empfänger) statt einer reinen E-Mail-Liste, damit beim Versand die
-    # jeweils passende Mailvorlage gewählt werden kann (Steuer-App vs. Paperless-ngx).
-    target_sends: list[tuple[str, str]] = []
-    if forward_target in ("steuer", "both"):
-        if not settings.steuer_email:
-            return render_error("Keine Steuer-E-Mail-Adresse in den Einstellungen hinterlegt.")
-        target_sends.append(("steuer", settings.steuer_email))
-    if forward_target in ("paperless", "both"):
-        if not settings.paperless_email:
-            return render_error("Keine Paperless-ngx-E-Mail-Adresse in den Einstellungen hinterlegt.")
-        target_sends.append(("paperless", settings.paperless_email))
 
     try:
         payload = girocode.build_epc_payload(recipient_name, iban, bic or None, parsed_amount, reference)
@@ -345,6 +327,72 @@ def girocode_submit(
     invoice.girocode_sent_at = datetime.utcnow()
     db.commit()
 
+    return RedirectResponse(f"/invoices/{invoice_id}", status_code=303)
+
+
+@router.get("/invoices/{invoice_id}/forward")
+def forward_form(request: Request, invoice_id: int, db: Session = Depends(get_db)):
+    invoice = _get_invoice_or_404(db, invoice_id)
+    if invoice.status != "approved":
+        raise HTTPException(status_code=400, detail="Rechnung muss freigegeben und darf noch nicht weitergeleitet sein")
+
+    settings = get_settings(db)
+    return templates.TemplateResponse(
+        request,
+        "forward.html",
+        {
+            "invoice": invoice,
+            "forward_targets": FORWARD_TARGETS,
+            "default_forward_target": settings.default_forward_target,
+            "steuer_email": settings.steuer_email,
+            "paperless_email": settings.paperless_email,
+        },
+    )
+
+
+@router.post("/invoices/{invoice_id}/forward")
+def forward_submit(
+    request: Request,
+    invoice_id: int,
+    forward_target: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    invoice = _get_invoice_or_404(db, invoice_id)
+    if invoice.status != "approved":
+        raise HTTPException(status_code=400, detail="Rechnung muss freigegeben und darf noch nicht weitergeleitet sein")
+
+    settings = get_settings(db)
+
+    def render_error(message: str):
+        return templates.TemplateResponse(
+            request,
+            "forward.html",
+            {
+                "invoice": invoice,
+                "forward_targets": FORWARD_TARGETS,
+                "default_forward_target": forward_target,
+                "steuer_email": settings.steuer_email,
+                "paperless_email": settings.paperless_email,
+                "error": message,
+            },
+            status_code=400,
+        )
+
+    if forward_target not in FORWARD_TARGETS:
+        return render_error("Ungültiges Weiterleitungsziel.")
+
+    # (Zielart, Empfänger) statt einer reinen E-Mail-Liste, damit beim Versand die
+    # jeweils passende Mailvorlage gewählt werden kann (Steuer-App vs. Paperless-ngx).
+    target_sends: list[tuple[str, str]] = []
+    if forward_target in ("steuer", "both"):
+        if not settings.steuer_email:
+            return render_error("Keine Steuer-E-Mail-Adresse in den Einstellungen hinterlegt.")
+        target_sends.append(("steuer", settings.steuer_email))
+    if forward_target in ("paperless", "both"):
+        if not settings.paperless_email:
+            return render_error("Keine Paperless-ngx-E-Mail-Adresse in den Einstellungen hinterlegt.")
+        target_sends.append(("paperless", settings.paperless_email))
+
     try:
         for target_type, target_email in target_sends:
             if target_type == "steuer":
@@ -352,9 +400,7 @@ def girocode_submit(
             else:
                 send_to_paperless(db, invoice, target_email)
     except (smtplib.SMTPException, OSError) as exc:
-        return render_error(
-            f"Girocode wurde versendet, aber die Weiterleitung der Rechnung ist fehlgeschlagen: {exc}"
-        )
+        return render_error(f"Weiterleitung fehlgeschlagen: {exc}")
 
     invoice.forwarded_to = ", ".join(email for _, email in target_sends)
     invoice.forwarded_at = datetime.utcnow()

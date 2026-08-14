@@ -2,7 +2,7 @@
 {% block title %}Girocode – Rechnung #{{ invoice.id }}{% endblock %}
 {% block content %}
 <a href="/invoices/{{ invoice.id }}">&larr; zurück zur Rechnung</a>
-<h1>Girocode prüfen &amp; Rechnung weiterleiten</h1>
+<h1>Girocode erstellen &amp; senden</h1>
 <p>Bitte die Zahlungsdaten sorgfältig gegen die Original-Rechnung prüfen, bevor der Girocode erstellt wird.</p>
 
 {% if error %}<p class="warning">{{ error }}</p>{% endif %}
@@ -18,6 +18,10 @@
     {% else %}
       <img src="/invoices/{{ invoice.id }}/file" alt="Beleg-Vorschau">
     {% endif %}
+    <p class="preview-fallback">
+      <a href="/invoices/{{ invoice.id }}/file" target="_blank" rel="noopener">Beleg in neuem Tab öffnen</a>
+      – falls die Vorschau (v.a. auf manchen mobilen Browsern) nicht anzeigt.
+    </p>
   </div>
 
   <div class="fields">
@@ -38,20 +42,8 @@
         <input type="text" name="reference" value="{{ prefill.reference }}" maxlength="140">
       </label>
 
-      <fieldset>
-        <legend>Rechnung weiterleiten an</legend>
-        {% for target in forward_targets %}
-        <label class="radio-label">
-          <input type="radio" name="forward_target" value="{{ target }}" {% if target == default_forward_target %}checked{% endif %}>
-          {% if target == "steuer" %}Steuer-App{% if steuer_email %} ({{ steuer_email }}){% endif %}
-          {% elif target == "paperless" %}Paperless-ngx{% if paperless_email %} ({{ paperless_email }}){% endif %}
-          {% else %}Beides{% endif %}
-        </label>
-        {% endfor %}
-      </fieldset>
-
       <button type="submit" {% if not girocode_email %}disabled{% endif %}>
-        Girocode erstellen, senden &amp; Rechnung weiterleiten
+        Girocode erstellen &amp; senden
       </button>
     </form>
   </div>

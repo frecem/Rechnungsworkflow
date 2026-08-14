@@ -163,7 +163,7 @@ a {
 }
 
 /* Grundlegende Formularelemente */
-input, select, textarea {
+input:not([type="radio"]):not([type="checkbox"]), select, textarea {
   font-family: inherit;
   font-size: 0.95rem;
   color: var(--text);
@@ -171,6 +171,16 @@ input, select, textarea {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   padding: 0.5rem 0.65rem;
+}
+
+/* Ohne diese Ausnahme erben Radio/Checkbox dieselbe Box wie Textfelder -
+   ein grosser umrandeter, gepolsterter Kasten um den winzigen nativen Kreis,
+   der optisch weit vom zugehoerigen Label absteht. */
+input[type="radio"], input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex-shrink: 0;
+  accent-color: var(--accent);
 }
 
 input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible {
@@ -374,8 +384,8 @@ button:active, input[type="submit"]:active {
 }
 .auth-form button:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
 
-/* Settings */
-.settings-form fieldset {
+/* Settings + sonstige Formulare mit fieldset (z.B. Girocode/Weiterleiten-Zielwahl) */
+.settings-form fieldset, fieldset {
   margin-bottom: var(--space-5);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -384,7 +394,7 @@ button:active, input[type="submit"]:active {
   box-shadow: var(--shadow-sm);
 }
 
-.settings-form legend {
+.settings-form legend, legend {
   padding: 0 var(--space-2);
   font-weight: 600;
   color: var(--text);
@@ -560,9 +570,14 @@ button:active, input[type="submit"]:active {
 
 .radio-label {
   display: flex !important;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.4rem;
   font-weight: normal;
+  margin-bottom: var(--space-2);
+}
+
+.radio-label input {
+  margin-top: 0.15rem;
 }
 .meta { margin-top: var(--space-5); color: var(--muted); font-size: 0.9rem; }
 

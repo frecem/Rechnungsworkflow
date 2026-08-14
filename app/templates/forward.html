@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Weiterleiten – Rechnung #{{ invoice.id }}{% endblock %}
+{% block content %}
+<a href="/invoices/{{ invoice.id }}">&larr; zurück zur Rechnung</a>
+<h1>Rechnung weiterleiten</h1>
+
+{% if error %}<p class="warning">{{ error }}</p>{% endif %}
+
+<div class="detail-grid">
+  <div class="preview">
+    {% if invoice.file_mime_type == "application/pdf" %}
+      <iframe src="/invoices/{{ invoice.id }}/file" title="Beleg-Vorschau"></iframe>
+    {% else %}
+      <img src="/invoices/{{ invoice.id }}/file" alt="Beleg-Vorschau">
+    {% endif %}
+    <p class="preview-fallback">
+      <a href="/invoices/{{ invoice.id }}/file" target="_blank" rel="noopener">Beleg in neuem Tab öffnen</a>
+      – falls die Vorschau (v.a. auf manchen mobilen Browsern) nicht anzeigt.
+    </p>
+  </div>
+
+  <div class="fields">
+    <form method="post" action="/invoices/{{ invoice.id }}/forward">
+      <fieldset>
+        <legend>Rechnung weiterleiten an</legend>
+        {% for target in forward_targets %}
+        <label class="radio-label">
+          <input type="radio" name="forward_target" value="{{ target }}" {% if target == default_forward_target %}checked{% endif %}>
+          {% if target == "steuer" %}Steuer-App{% if steuer_email %} ({{ steuer_email }}){% endif %}
+          {% elif target == "paperless" %}Paperless-ngx{% if paperless_email %} ({{ paperless_email }}){% endif %}
+          {% else %}Beides{% endif %}
+        </label>
+        {% endfor %}
+      </fieldset>
+      <button type="submit">Weiterleiten</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

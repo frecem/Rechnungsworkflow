@@ -3,8 +3,9 @@
 Kleine lokale Web-App zum **Verarbeiten eingehender Rechnungen** (privat/persönlich):
 Belege kommen per E-Mail (IMAP) oder als manueller Foto-/Scan-Upload rein, werden per
 OCR ausgelesen, auf einem Kanban-Board organisiert, im Browser geprüft/korrigiert und
-freigegeben. Bei der Freigabe wird ein Girocode (EPC-QR-Code) zum Bezahlen erzeugt und
-die Rechnung automatisch an eine Steuer-App und/oder Paperless-ngx weitergeleitet.
+freigegeben. Nach der Freigabe lassen sich unabhängig voneinander ein Girocode
+(EPC-QR-Code) zum Bezahlen versenden und die Rechnung an eine Steuer-App und/oder
+Paperless-ngx weiterleiten.
 
 Einzelnutzer-Tool mit einfachem Passwortschutz, läuft komplett lokal, keine
 Cloud-Abhängigkeit.
@@ -16,8 +17,10 @@ new → extracted → reviewed → approved → forwarded
                        ↳ rejected ↵ (zurück zu reviewed möglich)
 ```
 
-Freigabe (`approved`) führt zur Girocode-Prüfmaske; nach erfolgreichem Versand von
-Girocode und Weiterleitung wechselt der Status zu `forwarded`.
+Freigabe (`approved`) schaltet zwei unabhängige Aktionen frei: Girocode versenden
+(ändert den Status nicht) und Weiterleiten an Steuer-App/Paperless-ngx (wechselt den
+Status erst dabei zu `forwarded`) – beide können in beliebiger Reihenfolge oder auch
+nur einzeln ausgeführt werden.
 
 Unabhängig davon lässt sich jede Rechnung auf dem **Kanban-Board** frei zwischen
 selbst angelegten Spalten verschieben (z.B. "Bezahlen bis diese Woche", "Später",
@@ -160,13 +163,14 @@ Fehlers.
   Ablehnen. Nach Freigabe zusätzlich "Als bezahlt markieren" (stoppt künftige
   Fälligkeits-Erinnerungen für diese Rechnung). Unten ein aufklappbarer Verlauf aller
   Statuswechsel mit Zeitstempel.
-- **Girocode-Prüfmaske** (nach Freigabe): Zahlungsdaten (Empfänger, IBAN, BIC, Betrag,
-  Verwendungszweck) werden aus dem Belegtext vorbefüllt (IBAN/BIC-Erkennung), müssen
-  aber vor dem Absenden geprüft werden – die IBAN-Prüfsumme wird zusätzlich technisch
-  validiert. Nach Bestätigen: Girocode (EPC-QR-Code) wird als PNG an die
-  Girocode-Adresse gesendet, danach die Original-Rechnung an das gewählte Ziel
-  (Steuer/Paperless/beides) weitergeleitet. Erst wenn beides erfolgreich war, wechselt
-  der Status zu `forwarded`.
+- **Girocode-Prüfmaske** (nach Freigabe, auch nach Weiterleitung noch nutzbar):
+  Zahlungsdaten (Empfänger, IBAN, BIC, Betrag, Verwendungszweck) werden aus dem
+  Belegtext vorbefüllt (IBAN/BIC-Erkennung), müssen aber vor dem Absenden geprüft
+  werden – die IBAN-Prüfsumme wird zusätzlich technisch validiert. Versendet nur den
+  Girocode (EPC-QR-Code als PNG) an die Girocode-Adresse, ändert den Status nicht.
+- **Weiterleiten-Maske** (nach Freigabe, unabhängig vom Girocode-Versand): Ziel wählen
+  (Steuer-App/Paperless-ngx/beides), sendet die Original-Rechnung dorthin und wechselt
+  den Status danach zu `forwarded`.
 - **Auswertung** (`/stats`): Jahres-Übersicht als schneller Überblick vor der
   Steuererklärung – Gesamtsummen (Brutto/Netto/USt), Aufschlüsselung nach Kategorie
   und nach Monat, Jahr per Dropdown wählbar, zusätzlich per Kategorie filterbar
@@ -544,8 +548,9 @@ ruff check app/ scripts/ tests/
 
 Der komplette Ablauf wurde lokal end-to-end getestet: Ersteinrichtung/Login,
 PDF-Upload → automatische Extraktion → Board-Karte in Startspalte → Freigabe →
-Girocode-Prüfmaske (inkl. IBAN-Validierung) → Girocode-PNG-Versand → Weiterleitung an
-zwei Ziele gleichzeitig → Status `forwarded`. Der tatsächliche Mail-Versand wurde dabei
+Girocode-Prüfmaske (inkl. IBAN-Validierung) → Girocode-PNG-Versand (unabhängig, ändert
+den Status nicht) → separate Weiterleitung an zwei Ziele gleichzeitig → Status
+`forwarded`. Der tatsächliche Mail-Versand wurde dabei
 mit einem gemockten SMTP-Client verifiziert (Nachrichteninhalt, Anhänge, Empfänger
 korrekt); mit einem unerreichbaren SMTP-Host wurde zusätzlich der Fehlerpfad geprüft
 (klare Fehlermeldung statt Absturz, Status bleibt unverändert). E-Mail-Sync (IMAP) ist
