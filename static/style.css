@@ -279,6 +279,12 @@ button:active, input[type="submit"]:active {
   background: var(--surface);
 }
 
+.preview-fallback {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-top: var(--space-2);
+}
+
 .fields form label {
   display: block;
   margin-bottom: var(--space-3);

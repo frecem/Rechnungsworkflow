@@ -11,6 +11,10 @@
     {% else %}
       <img src="/invoices/{{ invoice.id }}/file" alt="Beleg-Vorschau">
     {% endif %}
+    <p class="preview-fallback">
+      <a href="/invoices/{{ invoice.id }}/file" target="_blank" rel="noopener">Beleg in neuem Tab öffnen</a>
+      – falls die Vorschau (v.a. auf manchen mobilen Browsern) nicht anzeigt.
+    </p>
   </div>
 
   <div class="fields">
