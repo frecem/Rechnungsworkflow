@@ -2,7 +2,7 @@
 {% block title %}Rechnung #{{ invoice.id }} – Rechnungsworkflow{% endblock %}
 {% block content %}
 <a href="/invoices">&larr; zurück zur Übersicht</a>
-<h1>Rechnung #{{ invoice.id }} <span class="status status-{{ invoice.status }}">{{ invoice.status }}</span></h1>
+<h1>Rechnung #{{ invoice.id }} <span class="status status-{{ invoice.status }}">{{ status_labels.get(invoice.status, invoice.status) }}</span></h1>
 
 <div class="detail-grid">
   <div class="preview">
@@ -143,9 +143,9 @@
           <li>
             {{ entry.changed_at }}:
             {% if entry.old_status %}
-              <span class="status status-{{ entry.old_status }}">{{ entry.old_status }}</span> &rarr;
+              <span class="status status-{{ entry.old_status }}">{{ status_labels.get(entry.old_status, entry.old_status) }}</span> &rarr;
             {% endif %}
-            <span class="status status-{{ entry.new_status }}">{{ entry.new_status }}</span>
+            <span class="status status-{{ entry.new_status }}">{{ status_labels.get(entry.new_status, entry.new_status) }}</span>
             {% if entry.note %}<span class="hint">({{ entry.note }})</span>{% endif %}
           </li>
         {% endfor %}

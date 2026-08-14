@@ -16,7 +16,7 @@
   <select name="status">
     <option value="">Alle Status</option>
     {% for s in statuses %}
-      <option value="{{ s }}" {% if s == current_status %}selected{% endif %}>{{ s }}</option>
+      <option value="{{ s }}" {% if s == current_status %}selected{% endif %}>{{ status_labels.get(s, s) }}</option>
     {% endfor %}
   </select>
   <input type="text" name="q" placeholder="Absender oder Rechnungsnr. suchen…" value="{{ q }}">
@@ -45,7 +45,7 @@
       <td>{{ invoice.invoice_number or "–" }}</td>
       <td>{% if invoice.amount_gross %}{{ "%.2f"|format(invoice.amount_gross) }} {{ invoice.currency }}{% else %}–{% endif %}</td>
       <td>{{ invoice.category or "–" }}</td>
-      <td><span class="status status-{{ invoice.status }}">{{ invoice.status }}</span></td>
+      <td><span class="status status-{{ invoice.status }}">{{ status_labels.get(invoice.status, invoice.status) }}</span></td>
       <td>{{ invoice.source_type }}</td>
     </tr>
     {% endfor %}

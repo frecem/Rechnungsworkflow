@@ -9,6 +9,19 @@ from app.database import Base
 STATUSES = ("new", "extracted", "reviewed", "approved", "rejected", "forwarded")
 FORWARD_TARGETS = ("steuer", "paperless", "both")
 
+# Deutsche Anzeigetexte fuer die Status-Badges im UI (Templates zeigen diese statt
+# der rohen STATUSES-Werte) - die rohen Werte bleiben unveraendert als DB-Werte,
+# Query-Parameter (Statusfilter in /invoices) und CSS-Klassennamen (status-{{ }})
+# in Verwendung, nur die sichtbare Beschriftung wird uebersetzt.
+STATUS_LABELS = {
+    "new": "Neu",
+    "extracted": "Extrahiert",
+    "reviewed": "Geprüft",
+    "approved": "Freigegeben",
+    "rejected": "Abgelehnt",
+    "forwarded": "Weitergeleitet",
+}
+
 
 class Invoice(Base):
     __tablename__ = "invoices"

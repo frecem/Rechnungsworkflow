@@ -7,11 +7,12 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Invoice
+from app.models import STATUS_LABELS, Invoice
 from app.services import board_service
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+templates.env.globals["status_labels"] = STATUS_LABELS
 
 
 @router.get("/board")

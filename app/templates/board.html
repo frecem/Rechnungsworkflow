@@ -32,7 +32,7 @@
     <div class="board-column-body">
       {% for invoice in invoices_by_column.get(column.id, []) %}
       <div class="board-card" draggable="true" data-invoice-id="{{ invoice.id }}">
-        <span class="status status-{{ invoice.status }}">{{ invoice.status }}</span>
+        <span class="status status-{{ invoice.status }}">{{ status_labels.get(invoice.status, invoice.status) }}</span>
         <div class="board-card-sender">{{ invoice.sender_name or "Unbekannter Absender" }}</div>
         <div class="board-card-amount">{% if invoice.amount_gross %}{{ "%.2f"|format(invoice.amount_gross) }} {{ invoice.currency }}{% else %}–{% endif %}</div>
         {% if invoice.due_date %}<div class="board-card-due">Bezahlen bis {{ invoice.due_date }}</div>{% endif %}

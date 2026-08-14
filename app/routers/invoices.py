@@ -9,7 +9,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import FORWARD_TARGETS, STATUSES, Invoice, InvoiceStatusHistory
+from app.models import FORWARD_TARGETS, STATUS_LABELS, STATUSES, Invoice, InvoiceStatusHistory
 from app.services import extraction, girocode, storage
 from app.services.settings_service import get_settings
 from app.services.smtp_client import SmtpNotConfigured, send_girocode, send_to_paperless, send_to_steuer
@@ -17,6 +17,7 @@ from app.services.status import InvalidStatusTransition, change_status
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+templates.env.globals["status_labels"] = STATUS_LABELS
 
 
 def _parse_decimal(raw: str | None) -> Decimal | None:
