@@ -33,7 +33,7 @@ alembic upgrade head
 alembic downgrade -1   # always verify a new migration is reversible before committing
 ```
 
-`tesseract-ocr`, `tesseract-ocr-deu`, and `poppler-utils` are required system packages for OCR fallback on scanned/photographed invoices — without them the app still runs, but PDFs without a text layer won't extract text. All extracted fields are always manually editable regardless.
+`tesseract-ocr`, `tesseract-ocr-deu`, and `poppler-utils` are required system packages for OCR fallback on scanned/photographed invoices — without them the app still runs, but PDFs without a text layer won't extract text. `libzbar0` (for `pyzbar`) is required to detect an EPC Girocode already printed on an invoice during ingest (`app/services/qr_scan.py`) and prefill payment data from it — without it, that detection is silently skipped. All extracted fields are always manually editable regardless.
 
 Docker: `docker-compose.yml` + `Dockerfile` + `docker-entrypoint.sh` build a single app container (no bundled nginx/TLS — designed to sit behind an existing reverse proxy, see README "Docker-Betrieb"). Migrations run automatically on container start.
 
@@ -54,7 +54,7 @@ Separately, `Invoice.board_column_id`/`board_position` place the invoice on a **
 
 ### Ingestion pipeline is the single choke point for file safety
 
-`app/services/ingest.py::ingest_document()` is called by **both** the upload router and the IMAP sync service — it is the only place that should enforce file-type validation (`storage.ALLOWED_MIME_TYPES` — PDF and image formats only, deliberately **not** HTML/SVG, since invoice files are later embedded in an `<iframe>`/`<img>` in the same origin and an executable format would be a stored-XSS vector). It also does hash-based dedup (`file_hash_sha256`) before OCR runs, so re-uploading/re-fetching the same file is a no-op. Any new ingestion path (e.g. a future second email account) must go through this function, not bypass it.
+`app/services/ingest.py::ingest_document()` is called by **both** the upload router and the IMAP sync service — it is the only place that should enforce file-type validation (`storage.ALLOWED_MIME_TYPES` — PDF and image formats only, deliberately **not** HTML/SVG, since invoice files are later embedded in an `<iframe>`/`<img>` in the same origin and an executable format would be a stored-XSS vector). It also does hash-based dedup (`file_hash_sha256`) before OCR runs, so re-uploading/re-fetching the same file is a no-op. After OCR text extraction it also runs `qr_scan.find_epc_payment_data()`, which renders the document to images and looks for an already-printed EPC Girocode (common on utility invoices) to prefill `payment_iban`/`payment_bic`/`payment_recipient_name`/`payment_reference` — more reliable than guessing IBAN/BIC from OCR text, since `app/routers/invoices.py::girocode_form()` already prefers `invoice.payment_iban` over the regex-based `extraction.find_iban()` fallback. Any new ingestion path (e.g. a future second email account) must go through this function, not bypass it.
 
 ### Login/session model
 

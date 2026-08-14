@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.models import Invoice
-from app.services import board_service, extraction, ocr, status, storage
+from app.services import board_service, extraction, ocr, qr_scan, status, storage
 
 
 def ingest_document(
@@ -36,6 +36,11 @@ def ingest_document(
 
     text = ocr.extract_text(content, mime_type)
     fields = extraction.extract_fields(text)
+    # Viele Rechnungen (v.a. Versorger) drucken bereits einen Girocode/EPC-QR-Code
+    # ab - wird einer gefunden, sind seine Zahlungsdaten zuverlaessiger als das
+    # Erraten per Texterkennung und werden direkt vorbefuellt (siehe girocode_form
+    # in app/routers/invoices.py, das invoice.payment_* vor der Regex-Suche prueft).
+    epc_payment = qr_scan.find_epc_payment_data(content, mime_type)
 
     invoice = Invoice(
         source_type=source_type,
@@ -48,11 +53,15 @@ def ingest_document(
         sender_name=fields.sender_name,
         invoice_number=fields.invoice_number,
         invoice_date=fields.invoice_date,
-        amount_gross=fields.amount_gross,
+        amount_gross=fields.amount_gross or (epc_payment["amount"] if epc_payment else None),
         amount_net=fields.amount_net,
         vat_amount=fields.vat_amount,
         vat_rate=fields.vat_rate,
         raw_extracted_text=text or None,
+        payment_recipient_name=epc_payment["recipient_name"] if epc_payment else None,
+        payment_iban=epc_payment["iban"] if epc_payment else None,
+        payment_bic=epc_payment["bic"] if epc_payment else None,
+        payment_reference=epc_payment["reference"] if epc_payment else None,
         status="new",
     )
     db.add(invoice)

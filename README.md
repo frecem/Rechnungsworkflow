@@ -29,20 +29,21 @@ unabhängig.
 
 ## Setup
 
-### 1. Systempakete (für OCR)
+### 1. Systempakete (für OCR + Girocode-Erkennung)
 
 ```bash
 # Debian/Ubuntu
-sudo apt install tesseract-ocr tesseract-ocr-deu poppler-utils
+sudo apt install tesseract-ocr tesseract-ocr-deu poppler-utils libzbar0
 
 # macOS (Homebrew)
-brew install tesseract tesseract-lang poppler
+brew install tesseract tesseract-lang poppler zbar
 ```
 
-Ohne diese Pakete funktioniert der Upload trotzdem – nur die OCR-Fallback-Extraktion
-für gescannte/fotografierte Belege liefert dann keinen Text (PDFs mit echtem
-Textlayer werden unabhängig davon korrekt gelesen). Alle Felder sind ohnehin immer
-manuell nachbearbeitbar.
+Ohne `tesseract-ocr`/`poppler-utils` funktioniert der Upload trotzdem – nur die
+OCR-Fallback-Extraktion für gescannte/fotografierte Belege liefert dann keinen Text
+(PDFs mit echtem Textlayer werden unabhängig davon korrekt gelesen). Ohne `libzbar0`
+wird ein bereits auf dem Beleg aufgedruckter Girocode nicht automatisch erkannt (siehe
+"Girocode / EPC-QR-Code" unten). Alle Felder sind ohnehin immer manuell nachbearbeitbar.
 
 ### 2. Python-Umgebung
 
@@ -192,6 +193,16 @@ Der erzeugte QR-Code folgt dem [EPC-QR-Code-Standard](https://de.wikipedia.org/w
 die Girocodes unterstützt, um die Rechnung direkt zu bezahlen. Kodiert werden Empfänger,
 IBAN, optional BIC, Betrag und Verwendungszweck – also die Zahlungsdaten des
 **Rechnungsstellers**, nicht deine eigenen.
+
+**Erkennung bereits vorhandener Girocodes**: Viele Rechnungen (v.a. von Versorgern)
+drucken schon einen eigenen Girocode ab. Beim Import (Upload wie IMAP) wird jede Seite
+des Belegs auf einen solchen Code durchsucht (`app/services/qr_scan.py`, `pyzbar` +
+Systempaket `libzbar0`); wird einer gefunden, werden Empfänger, IBAN, BIC und
+Verwendungszweck direkt daraus übernommen – zuverlässiger als das Erraten per
+Texterkennung, da die Zahlungsdaten strukturiert im Code stehen. Andere QR-Codes auf dem
+Beleg (z.B. Tracking- oder Portal-Links) werden ignoriert, erkennbar am fehlenden
+`BCD`-Kennzeichen des EPC-Formats. Fehlt `libzbar0` oder wird kein Code gefunden, bleiben
+die Felder wie gehabt leer/aus der Texterkennung befüllt – kein Absturz.
 
 ## Fälligkeits-Erinnerung
 

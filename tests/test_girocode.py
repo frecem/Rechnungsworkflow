@@ -2,7 +2,13 @@ from decimal import Decimal
 
 import pytest
 
-from app.services.girocode import InvalidPaymentData, build_epc_payload, normalize_iban, validate_iban
+from app.services.girocode import (
+    InvalidPaymentData,
+    build_epc_payload,
+    normalize_iban,
+    parse_epc_payload,
+    validate_iban,
+)
 
 # Bekannte gültige Beispiel-IBAN der Bundesbank
 VALID_IBAN = "DE89 3704 0044 0532 0130 00"
@@ -57,3 +63,42 @@ def test_build_epc_payload_bic_optional():
     payload = build_epc_payload("Testfirma", VALID_IBAN, None, Decimal("10.00"), "x")
     lines = payload.split("\n")
     assert lines[4] == ""
+
+
+def test_parse_epc_payload_round_trip():
+    payload = build_epc_payload(
+        recipient_name="Testfirma GmbH",
+        iban=VALID_IBAN,
+        bic="COBADEFFXXX",
+        amount=Decimal("119.50"),
+        reference="Rechnung RE-2026-001",
+    )
+    parsed = parse_epc_payload(payload)
+    assert parsed == {
+        "recipient_name": "Testfirma GmbH",
+        "iban": "DE89370400440532013000",
+        "bic": "COBADEFFXXX",
+        "amount": Decimal("119.50"),
+        "reference": "Rechnung RE-2026-001",
+    }
+
+
+def test_parse_epc_payload_bic_optional_becomes_none():
+    payload = build_epc_payload("Testfirma", VALID_IBAN, None, Decimal("10.00"), "x")
+    parsed = parse_epc_payload(payload)
+    assert parsed["bic"] is None
+
+
+def test_parse_epc_payload_rejects_non_epc_qr_content():
+    assert parse_epc_payload("https://example.com/some-tracking-link") is None
+
+
+def test_parse_epc_payload_rejects_invalid_iban():
+    payload = "BCD\n002\n1\nSCT\n\nTestfirma\nDE00000000000000000000\nEUR10.00\n\n\nx"
+    assert parse_epc_payload(payload) is None
+
+
+def test_parse_epc_payload_handles_crlf_line_endings():
+    payload = build_epc_payload("Testfirma", VALID_IBAN, None, Decimal("10.00"), "x").replace("\n", "\r\n")
+    parsed = parse_epc_payload(payload)
+    assert parsed["iban"] == "DE89370400440532013000"

@@ -6,11 +6,15 @@ FROM python:3.11-slim
 # tzdata: damit die TZ-Umgebungsvariable (siehe docker-compose.yml) eine echte
 # Zeitzone aufloest - ohne dieses Paket faellt die App stillschweigend auf UTC
 # zurueck, was die taeglichen Erinnerungs-Cronjobs (07/08/09 Uhr) verschieben wuerde.
+# libzbar0: fuer pyzbar (app/services/qr_scan.py) - erkennt einen auf dem Beleg
+# bereits aufgedruckten Girocode/EPC-QR-Code, um die Zahlungsdaten beim Import
+# direkt daraus vorzubefuellen statt sie per Texterkennung zu erraten.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \
     tesseract-ocr-deu \
     poppler-utils \
     tzdata \
+    libzbar0 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
