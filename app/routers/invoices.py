@@ -166,6 +166,11 @@ def save_invoice(
 def approve_invoice(invoice_id: int, db: Session = Depends(get_db)):
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
+        # Das Formular setzt "reviewed" nur beim Speichern - wer die Felder schon
+        # beim ersten Anblick fuer korrekt haelt und direkt auf "Freigeben" klickt
+        # (ohne vorher zu speichern), hat die Rechnung damit ebenso geprueft.
+        if invoice.status == "extracted":
+            change_status(db, invoice, "reviewed", note="Direkt freigegeben ohne Änderungen")
         change_status(db, invoice, "approved")
     except InvalidStatusTransition as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
