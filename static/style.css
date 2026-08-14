@@ -622,16 +622,23 @@ button:active, input[type="submit"]:active {
   .topbar nav a, .topbar nav button {
     margin-left: 0;
   }
+
+  /* Spalten untereinander statt nebeneinander-scrollend - auf Telefonbreite
+     passt ohnehin nur eine Spalte sinnvoll auf den Bildschirm. */
+  .board {
+    flex-direction: column;
+    overflow-x: visible;
+  }
+
+  .board-column {
+    min-width: 0;
+    max-width: none;
+  }
 }
 
 @media (max-width: 480px) {
   .container {
     padding: var(--space-4) 0.75rem;
-  }
-
-  .board-column {
-    min-width: 85vw;
-    max-width: 85vw;
   }
 
   .preview iframe, .preview img {
