@@ -1,3 +1,4 @@
+import contextlib
 import smtplib
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -179,6 +180,22 @@ def reject_invoice(invoice_id: int, note: str = Form(""), db: Session = Depends(
     except InvalidStatusTransition as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return RedirectResponse(f"/invoices/{invoice_id}", status_code=303)
+
+
+@router.post("/invoices/{invoice_id}/delete")
+def delete_invoice(invoice_id: int, db: Session = Depends(get_db)):
+    """Loescht eine Rechnung inkl. Belegdatei unwiderruflich (z.B. Fehl-Upload,
+
+    Duplikat, Testdaten) - unabhaengig vom Status, da der Nutzer hier bewusst
+    entscheidet, nicht die App.
+    """
+    invoice = _get_invoice_or_404(db, invoice_id)
+    with contextlib.suppress(storage.StoredFileMissing):
+        storage.absolute_path(invoice.file_path).unlink(missing_ok=True)
+    db.query(InvoiceStatusHistory).filter(InvoiceStatusHistory.invoice_id == invoice_id).delete()
+    db.delete(invoice)
+    db.commit()
+    return RedirectResponse("/invoices", status_code=303)
 
 
 @router.post("/invoices/{invoice_id}/recurring-ended")

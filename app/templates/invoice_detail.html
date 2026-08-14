@@ -86,6 +86,10 @@
           <button type="submit">Zurück zur Prüfung</button>
         </form>
       {% endif %}
+      <form method="post" action="/invoices/{{ invoice.id }}/delete" class="form-inline"
+            data-confirm="Rechnung #{{ invoice.id }} unwiderruflich löschen (inkl. Belegdatei)? Das kann nicht rückgängig gemacht werden.">
+        <button type="submit" class="btn-reject">Löschen</button>
+      </form>
     </div>
 
     {% if invoice.status == "approved" %}
